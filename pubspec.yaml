@@ -43,9 +43,6 @@ dependencies:
   flutter_markdown: ^0.6.15
   flutter_quill: ^11.0.0  # 升级到 11.0.0
   markdown_quill: ^4.3.0
-  flutter_quill_extensions: ^11.0.0
-dependency_overrides:
-  video_player_platform_interface: ^6.2.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
