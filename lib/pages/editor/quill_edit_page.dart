@@ -2,20 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
 class QuillEditorWidget extends StatefulWidget {
-  /// Delta JSON（用于编辑/回显）
+  final String? initialTitle; // ✅ 新增：初始标题
   final List<dynamic>? initialDelta;
-
-  /// 是否只读
-  final bool readOnly;
-
-  /// 内容变化回调（Delta JSON）
-  final ValueChanged<List<dynamic>>? onChanged;
+  final void Function(String title, List<dynamic> content)? onSave;
 
   const QuillEditorWidget({
     super.key,
+    this.initialTitle,
     this.initialDelta,
-    this.readOnly = false,
-    this.onChanged,
+    this.onSave,
   });
 
   @override
@@ -24,6 +19,7 @@ class QuillEditorWidget extends StatefulWidget {
 
 class _QuillEditorWidgetState extends State<QuillEditorWidget> {
   late final QuillController _controller;
+  late final TextEditingController _titleController;
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
 
@@ -31,6 +27,12 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
   void initState() {
     super.initState();
 
+    // 初始化标题
+    _titleController = TextEditingController(
+      text: widget.initialTitle ?? '请填写标题',
+    );
+
+    // 初始化正文
     final document = widget.initialDelta != null
         ? Document.fromJson(widget.initialDelta!)
         : Document();
@@ -38,22 +40,31 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
     _controller = QuillController(
       document: document,
       selection: const TextSelection.collapsed(offset: 0),
-      readOnly: widget.readOnly
+      readOnly: false,
+      keepStyleOnNewLine:false
     );
-
-    _controller.addListener(_handleChange);
   }
 
-  void _handleChange() {
-    widget.onChanged?.call(
-      _controller.document.toDelta().toJson(),
-    );
+  void _handleSave() {
+    final title = _titleController.text;
+    final content = _controller.document.toDelta().toJson();
+
+    // 推荐：通过 onSave 回调让父组件统一处理保存
+    widget.onSave?.call(title, content);
+
+    // 或者直接在这里处理（二选一）
+    // saveData(title, content);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已保存')));
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_handleChange);
     _controller.dispose();
+    _titleController.dispose();
     _focusNode.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -61,39 +72,89 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Stack(
       children: [
-        if (!widget.readOnly)
-          QuillSimpleToolbar(
-            controller: _controller,
-            config: const QuillSimpleToolbarConfig(
-              showSubscript:false,
-              showSuperscript:false,
-              showClearFormat:false,
-              showBoldButton: true,
-              showFontFamily: false,
-              showItalicButton: true,
-              showUnderLineButton: true,
-              showStrikeThrough: true,
-              showHeaderStyle: true,
-              showListBullets: true,
-              showListNumbers: true,
-              showQuote: true,
-              showCodeBlock: true,
-              showUndo: true,
-              showRedo: true,
+        Column(
+          children: [
+            // ✅ 可编辑标题
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: TextField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  hintText: '请输入标题',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 1,
+                textInputAction: TextInputAction.next,
+              ),
             ),
-          ),
-        Expanded(
-          child: QuillEditor(
-            controller: _controller,
-            focusNode: _focusNode,
-            scrollController: _scrollController,
-            config: QuillEditorConfig(
-              autoFocus: false,
-              expands: false,
-              padding: const EdgeInsets.all(12)
+
+            const Divider(height: 1),
+
+            // Quill 工具栏
+            QuillSimpleToolbar(
+              controller: _controller,
+              config: const QuillSimpleToolbarConfig(
+                multiRowsDisplay: true,
+                showFontFamily: false,
+                showFontSize: true,
+                showHeaderStyle: false,
+                showColorButton: true,
+                showBackgroundColorButton: false,
+                showStrikeThrough: false,
+                showInlineCode: false,
+                showQuote: false,
+                showCodeBlock: false,
+                showIndent: false,
+                showSearchButton: false,
+                showSubscript: false,
+                showSuperscript: false,
+                showLineHeightButton: false,
+                showClearFormat:false,
+                showLink:false,
+                // 核心功能保留
+                showBoldButton: true,
+                showItalicButton: false,
+                showUnderLineButton: false,
+                showListBullets: false,
+                showListNumbers: true,
+                showUndo: false,
+                showRedo: false,
+              ),
             ),
+
+            const Divider(height: 1),
+
+            // 编辑区域
+            Expanded(
+              child: QuillEditor(
+                controller: _controller,
+                focusNode: _focusNode,
+                scrollController: _scrollController,
+                config: QuillEditorConfig(
+                  autoFocus: false,
+                  expands: false,
+                  padding: const EdgeInsets.all(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        // ✅ 右下角保存按钮
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton(
+            onPressed: _handleSave,
+            tooltip: '保存',
+            child: const Icon(Icons.save),
           ),
         ),
       ],

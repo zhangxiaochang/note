@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:project/pages/editor/edit_page.dart';
 import '../../dao/db.dart';
 import '../../domain/note.dart';
-import '../markdown_edit_page.dart';
 import 'note_card.dart';
 
 class HomePageBody extends StatelessWidget {
@@ -129,7 +129,7 @@ class HomePageBody extends StatelessWidget {
                     Navigator.of(context)
                         .push<bool>(
                           MaterialPageRoute(
-                            builder: (_) => MarkdownEditPage(note: note),
+                            builder: (_) => EditPage(note: note),
                           ),
                         )
                         .then((edited) {

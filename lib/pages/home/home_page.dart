@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../dao/db.dart';
 import '../../domain/note.dart';
-import '../editor/quill_edit_page.dart';
-import '../markdown_edit_page.dart';
+import '../editor/edit_page.dart';
 import 'home_page_body.dart';
 
 class HomePage extends StatefulWidget {
@@ -88,19 +87,8 @@ class _HomePageState extends State<HomePage> {
           onPressed: () async {
             await Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => Scaffold(
-                  appBar: AppBar(title: Text("富文本编辑器")),
-                  body: QuillEditorWidget(
-                    initialDelta: [
-                      {"insert": "Hello, Flutter Quill!\n"}
-                    ],
-                    readOnly: false,
-                    onChanged: (deltaJson) {
-                      print("内容变化了: $deltaJson");
-                    },
-                  ),
+                builder: (_) => EditPage(),
                 ),
-              ),
             );
           },
         tooltip: 'New',

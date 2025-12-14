@@ -4,6 +4,8 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import '../domain/note.dart';
+import 'dart:convert';
+
 
 class DB {
   static final DB instance = DB._init();
@@ -41,10 +43,17 @@ class DB {
         ''');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
+        print('Upgrading DB from $oldVersion to $newVersion');
         // 从 v1 升级到 v2：添加 deltaContent 列
         if (oldVersion < 2) {
-          await db.execute('ALTER TABLE notes ADD COLUMN deltaContent TEXT');
+          // 检查并添加 deltaContent 列（幂等）
+          final columns = await db.rawQuery('PRAGMA table_info(notes)');
+          final hasDeltaColumn = columns.any((row) => row['name'] == 'deltaContent');
 
+          if (!hasDeltaColumn) {
+            await db.execute('ALTER TABLE notes ADD COLUMN deltaContent TEXT');
+            print('✅ Added deltaContent column');
+          }
           // 可选：为已有笔记初始化 deltaContent（用纯文本转 Delta）
           final rows = await db.query('notes');
           for (final row in rows) {
@@ -52,7 +61,7 @@ class DB {
             // 构造最简 Delta：{"ops":[{"insert":"your text\n"}]}
             final deltaJson = plainText.isEmpty
                 ? Note.emptyDelta
-                : '{"ops":[{"insert":"${_escapeJson(plainText)}\\n"}]}';
+                : _textToDeltaJson(plainText);
 
             await db.update(
               'notes',
@@ -66,11 +75,12 @@ class DB {
     );
   }
 
-  // 辅助：转义 JSON 字符串（防止 " \ 等破坏 JSON 结构）
-  static String _escapeJson(String input) {
-    return input.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+  String _textToDeltaJson(String text) {
+    if (text.isEmpty) return '[]';
+    // 注意：需要转义 JSON 特殊字符（如 "、\、换行等）
+    final escaped = jsonEncode(text + '\n'); // jsonEncode 会自动处理转义！
+    return '[{"insert":$escaped}]';
   }
-
   Future<int> insert(Note note) async {
     final db = await instance.db;
     return db.insert('notes', note.toMap());
