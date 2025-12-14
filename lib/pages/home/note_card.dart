@@ -1,4 +1,4 @@
-import '../domain/note.dart';// 引入自定义note实体
+import '../../domain/note.dart';// 引入自定义note实体
 import 'package:flutter/material.dart';// 引入 flutter material
 
 class NoteCard extends StatelessWidget { // 无状态组件 less  有状态组件 ful

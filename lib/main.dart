@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'ui/home_page.dart';
-import 'dart:io';   // 因为用了 Platform.isMacOS
-import 'package:flutter/services.dart';   // ← 就是这一行！！
+import 'pages/home/home_page.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:flutter_localizations/flutter_localizations.dart';
+
 void main() {
   runApp(const App());
 }
@@ -23,6 +25,12 @@ class App extends StatelessWidget {
         brightness: Brightness.dark,
       ),
       home: const HomePage(),
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        quill.FlutterQuillLocalizations.delegate,
+      ],
     );
   }
 }
