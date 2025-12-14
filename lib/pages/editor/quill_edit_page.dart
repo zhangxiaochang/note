@@ -29,7 +29,7 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
 
     // 初始化标题
     _titleController = TextEditingController(
-      text: widget.initialTitle ?? '请填写标题',
+      text: widget.initialTitle ?? '',
     );
 
     // 初始化正文
