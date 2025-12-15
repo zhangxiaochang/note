@@ -29,7 +29,7 @@ class DB {
     // 3. 打开数据库（支持升级）
     return openDatabase(
       dbPath,
-      version: 2, // 👈 升级版本号
+      version: 3, // 👈 升级版本号
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE notes(
@@ -69,6 +69,16 @@ class DB {
               where: 'id = ?',
               whereArgs: [row['id']],
             );
+          }
+        }
+        if (oldVersion < 3) {
+          // 检查并添加 deltaContent 列（幂等）
+          final columns = await db.rawQuery('PRAGMA table_info(notes)');
+          final hasDeltaColumn = columns.any((row) => row['name'] == 'updatedAt');
+
+          if (!hasDeltaColumn) {
+            await db.execute('ALTER TABLE notes ADD COLUMN updatedAt INTEGER');
+            print('✅ Added updatedAt column');
           }
         }
       },
