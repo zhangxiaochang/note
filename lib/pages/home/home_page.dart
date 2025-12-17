@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../dao/db.dart';
 import '../../domain/note.dart';
+import '../../utils/storage_analyzer_page.dart';
 import '../editor/edit_page.dart';
 import 'home_page_body.dart';
 
@@ -17,6 +18,10 @@ class _HomePageState extends State<HomePage> {
   // 动画状态变量
   double _refreshOpacity = 1.0;
   double _scale = 1.0;
+
+  bool _debugEnabled = false;
+  int _tapCount = 0;
+  DateTime? _lastTap;
 
   @override
   void initState() {
@@ -61,15 +66,59 @@ class _HomePageState extends State<HomePage> {
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         centerTitle: false,
-        title: const Text('Notes'),
+        title:  GestureDetector(
+          onTap: () {
+            final now = DateTime.now();
+            if (_lastTap == null || now.difference(_lastTap!) < const Duration(seconds: 1)) {
+              _tapCount++;
+            } else {
+              _tapCount = 1;
+            }
+            _lastTap = now;
+
+            if (_tapCount >= 5) { // 连点 5 次
+              setState(() {
+                _debugEnabled = true;
+              });
+              _tapCount = 0;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('🔧 Debug mode enabled!')),
+              );
+            }
+          },
+          child: const Text('Notes'),
+        ),
         actions: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding: const EdgeInsets.only(right: 5)	,
             child: IconButton(
               icon: const Icon(Icons.sync),
               onPressed: _handleRefresh,
             ),
           ),
+          if (_debugEnabled)
+            Padding(
+              padding: const EdgeInsets.only(right: 5)	,
+              child: GestureDetector(
+                onLongPress: () {
+                  setState(() {
+                    _debugEnabled = false;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Debug mode disabled')),
+                  );
+                },
+                child: IconButton(
+                  icon: const Icon(Icons.adb),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => StorageAnalyzerPage()),
+                    );
+                  },
+                ),
+              ),
+            ),
         ],
       ),
       body: AnimatedOpacity(
