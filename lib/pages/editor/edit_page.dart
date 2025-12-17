@@ -12,6 +12,7 @@ class EditPage extends StatefulWidget {
 class _EditPageState extends State<EditPage> {
 
   String getPlainText(List<dynamic> delta) {
+
     final buffer = StringBuffer();
     for (final op in delta) {
       if (op is Map && op.containsKey('insert')) {
@@ -21,7 +22,7 @@ class _EditPageState extends State<EditPage> {
         }
       }
     }
-    return buffer.toString();
+    return buffer.toString().replaceAll(RegExp(r'\n+$'), '');
   }
   Future<void> _save(title,content) async {
     if (title.isEmpty && content.isEmpty) {
