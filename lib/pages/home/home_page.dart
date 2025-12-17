@@ -80,6 +80,7 @@ class _HomePageState extends State<HomePage> {
             headerSliverBuilder: (context, innerBoxIsScrolled) {
               return [
                 SliverAppBar(
+                  backgroundColor:Colors.yellow.shade300, // 👈 淡黄色（Material Design 调色板）
                   floating: true,
                   // 滚动停止后是否立即显示
                   snap: true,
@@ -88,45 +89,45 @@ class _HomePageState extends State<HomePage> {
                   // 允许下拉拉伸（配合刷新）
                   pinned: false,
                   // 不固定（设为 true 则始终显示标题）
-                  title: GestureDetector(
-                    onTap: () {
-                      final now = DateTime.now();
-                      if (_lastTap == null ||
-                          now.difference(_lastTap!) <
-                              const Duration(seconds: 1)) {
-                        _tapCount++;
-                      } else {
-                        _tapCount = 1;
-                      }
-                      _lastTap = now;
+                  title: Align(
+                    alignment: Alignment.centerLeft, // 将标题左对齐
+                    child: GestureDetector(
+                      onTap: () {
+                        final now = DateTime.now();
+                        if (_lastTap == null ||
+                            now.difference(_lastTap!) <
+                                const Duration(seconds: 1)) {
+                          _tapCount++;
+                        } else {
+                          _tapCount = 1;
+                        }
+                        _lastTap = now;
 
-                      if (_tapCount >= 5) {
-                        setState(() {
-                          _debugEnabled = true;
-                        });
-                        _tapCount = 0;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('🔧 Debug mode enabled!'),
-                          ),
-                        );
-                      }
-                    },
-                    child: const Text('Notes'),
+                        if (_tapCount >= 5) {
+                          setState(() {
+                            _debugEnabled = true;
+                          });
+                          _tapCount = 0;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('🔧 Debug mode enabled!'),
+                            ),
+                          );
+                        }
+                      },
+                      child: const Text('Notes'),
+                    ),
                   ),
                   actions: [
-                    IconButton(
-                      icon: Icon(
-                        _isCardView ? Icons.view_list : Icons.grid_view,
-                      ),
-                      onPressed: _toggleViewMode,
-                      tooltip: _isCardView ? '切换为列表' : '切换为卡片',
-                    ),
                     Padding(
                       padding: const EdgeInsets.only(right: 5),
+
                       child: IconButton(
-                        icon: const Icon(Icons.sync),
-                        onPressed: _handleRefresh,
+                        icon: Icon(
+                          _isCardView ? Icons.view_list : Icons.grid_view,
+                        ),
+                        onPressed: _toggleViewMode,
+                        tooltip: _isCardView ? '切换为列表' : '切换为卡片',
                       ),
                     ),
                     if (_debugEnabled)
@@ -176,7 +177,9 @@ class _HomePageState extends State<HomePage> {
         },
         tooltip: 'New',
         child: Icon(Icons.add),
-        backgroundColor: Color(0xFFA5D6A7),
+        shape: const CircleBorder(),
+        mini: true,
+        backgroundColor: Color(0xFF2979FF),
       ),
     );
   }

@@ -119,6 +119,7 @@ class HomePageBody extends StatelessWidget {
           // 卡片模式：瀑布流
           content = MasonryGridView.count(
             crossAxisCount: _crossAxisCount(context),
+            padding: const EdgeInsets.all(8.0),
             mainAxisSpacing: 2,
             crossAxisSpacing: 2,
             itemCount: notes.length,
@@ -152,50 +153,32 @@ class HomePageBody extends StatelessWidget {
             padding: const EdgeInsets.all(8.0),
             itemBuilder: (_, index) {
               final note = notes[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  title: Text(
-                    note.title.isEmpty ? '<无标题>' : note.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    note.content,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  trailing: const Icon(Icons.chevron_right, size: 20),
-                  onTap: () {
-                    Navigator.of(context)
-                        .push<bool>(
-                          MaterialPageRoute(
-                            builder: (_) => EditPage(note: note),
-                          ),
-                        )
-                        .then((edited) {
-                          if (edited == true) {
-                            onRefresh();
-                          }
-                        });
-                  },
-                  onLongPress: () {
-                    _deleteNote(context, note).then((_) {
+              return NoteCard(
+                note: note,
+                onTap: () {
+                  Navigator.of(context)
+                      .push<bool>(
+                    MaterialPageRoute(builder: (_) => EditPage(note: note)),
+                  )
+                      .then((edited) {
+                    if (edited == true) {
                       onRefresh();
-                    });
-                  },
-                ),
-              );
+                    }
+                  });
+                },
+                onLongPress: () {
+                  _deleteNote(context, note).then((_) {
+                    onRefresh();
+                  });
+                },
+              );;
             },
           );
         }
         // ✅ 关键：在这里包裹 RefreshIndicator！
-        return RefreshIndicator(onRefresh: onRefresh, child: content);
+        return RefreshIndicator(
+            onRefresh: onRefresh,
+            child: content);
       },
     );
   }
