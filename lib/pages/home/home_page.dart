@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../dao/db.dart';
 import '../../domain/note.dart';
+import '../../services/BackupActions.dart';
 import '../../utils/storage_analyzer_page.dart';
 import '../editor/edit_page.dart';
 import 'home_page_body.dart';
@@ -130,6 +131,24 @@ class _HomePageState extends State<HomePage> {
                         tooltip: _isCardView ? '切换为列表' : '切换为卡片',
                       ),
                     ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 5),
+
+                      child: IconButton(
+                        icon: const Icon(Icons.download_outlined),
+                        onPressed: () => BackupActions.exportNotesWithDialog(context),
+                        tooltip: '导出笔记',
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 5),
+
+                      child: IconButton(
+                        icon: const Icon(Icons.upload_outlined),
+                        onPressed: () => BackupActions.importNotesWithDialog(context),
+                        tooltip: '导入笔记',
+                      ),
+                    ),
                     if (_debugEnabled)
                       Padding(
                         padding: const EdgeInsets.only(right: 5),
@@ -178,7 +197,6 @@ class _HomePageState extends State<HomePage> {
         tooltip: 'New',
         child: Icon(Icons.add),
         shape: const CircleBorder(),
-        mini: true,
         backgroundColor: Color(0xFF2979FF),
       ),
     );

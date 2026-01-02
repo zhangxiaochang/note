@@ -59,4 +59,28 @@ class Note {
     );
   }
   static const emptyDelta = [{'insert': '\n'}];
+
+
+  // 用于 JSON 文件导出（deltaContent 保持为 List）
+  Map<String, dynamic> toJsonMap() {
+    return {
+      'title': title,
+      'content': content,
+      'deltaContent': deltaContent ?? emptyDelta,
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
+    };
+  }
+
+// 用于数据库存储（deltaContent 转为 String）
+  Map<String, dynamic> toDbMap() {
+    return {
+      'id': id,
+      'title': title,
+      'content': content,
+      'deltaContent': jsonEncode(deltaContent ?? emptyDelta), // 👈 转字符串
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
+    };
+  }
 }
