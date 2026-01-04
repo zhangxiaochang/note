@@ -4,6 +4,7 @@ import 'package:project/pages/editor/edit_page.dart';
 import '../../dao/db.dart';
 import '../../domain/note.dart';
 import 'note_card.dart';
+import 'dart:math' as math;
 
 class HomePageBody extends StatelessWidget {
   final Future<List<Note>> future;
@@ -59,10 +60,9 @@ class HomePageBody extends StatelessWidget {
       }
     }
   }
-
   int _crossAxisCount(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    return width ~/ 170;
+    return math.max(1, width ~/ 170);
   }
 
   @override
