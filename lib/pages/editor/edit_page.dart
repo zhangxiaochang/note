@@ -67,7 +67,6 @@ class _EditPageState extends State<EditPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: QuillEditorWidget(
-          initialTitle:widget.note?.title,
           initialDelta:widget.note?.deltaContent,
           onSave: (title,content) {
             _save(title,content);
