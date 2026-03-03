@@ -40,10 +40,56 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
       document: document,
       selection: const TextSelection.collapsed(offset: 0),
       readOnly: false,
-      keepStyleOnNewLine: false,
+      keepStyleOnNewLine: true,
     );
+
+    // 监听光标/选区变化，将光标左侧字符的 size 同步到 toggledStyle
+    // 确保中文 IME 上屏时新文字继承正确字号
+    _controller.addListener(_syncSizeToToggledStyle);
   }
 
+  String? _lastCursorSizeValue;
+
+  void _syncSizeToToggledStyle() {
+    final sel = _controller.selection;
+    if (!sel.isCollapsed) return;
+
+    final pos = sel.baseOffset;
+    if (pos <= 0) return;
+
+    try {
+      final plain = _controller.document.toPlainText();
+
+      int probe = pos - 1;
+
+      // ⭐ 跳过所有换行符，找到真正有样式的字符
+      while (probe > 0 && plain[probe] == '\n') {
+        probe--;
+      }
+
+      if (probe < 0 || probe >= plain.length) return;
+
+      final leftStyle = _controller.document.collectStyle(probe, 1);
+      final sizeAttr = leftStyle.attributes['size'];
+      final sizeValue = sizeAttr?.value?.toString();
+
+      // 避免重复设置造成死循环
+      if (sizeValue == _lastCursorSizeValue) return;
+      _lastCursorSizeValue = sizeValue;
+
+      _controller.removeListener(_syncSizeToToggledStyle);
+
+      if (sizeAttr != null) {
+        final attr = Attribute.fromKeyValue('size', sizeAttr.value);
+        _controller.formatSelection(attr);
+      } else {
+        // 左侧没有 size，就不要乱清（保持当前状态）
+        _controller.formatSelection(Attribute.clone(Attribute.size, null));
+      }
+
+      _controller.addListener(_syncSizeToToggledStyle);
+    } catch (_) {}
+  }
   String _extractTitleFromDelta(List<dynamic> delta) {
     if (delta.isEmpty) return '无标题';
     for (final op in delta) {
@@ -89,7 +135,7 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
 
   void _showFontSizeMenu(BuildContext context, Offset offset, Size size) {
     final sizes = [10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 24.0, 28.0, 32.0, 36.0, 40.0, 48.0];
-    
+
     showMenu<double>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -108,7 +154,7 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
             children: [
               SizedBox(
                 width: 24,
-                child: isSelected 
+                child: isSelected
                   ? const Icon(Icons.check, size: 18, color: Colors.blue)
                   : null,
               ),
@@ -124,7 +170,19 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
     ).then((size) {
       if (size != null) {
         final attr = size == 16.0 ? Attribute.size : Attribute.fromKeyValue('size', size);
-        _controller.formatSelection(attr);
+        // 收缩选区，排除末尾换行符，避免 \n 携带 size attribute 污染下一行
+        final sel = _controller.selection;
+        final docText = _controller.document.toPlainText();
+        int start = sel.start;
+        int end = sel.end;
+        while (end > start && end <= docText.length && docText[end - 1] == '\n') {
+          end--;
+        }
+        if (end > start) {
+          _controller.formatText(start, end - start, attr);
+        } else if (sel.isCollapsed) {
+          _controller.formatSelection(attr);
+        }
       }
     });
   }
@@ -163,9 +221,10 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
       ],
     );
   }
-  
+
   @override
   void dispose() {
+    _controller.removeListener(_syncSizeToToggledStyle);
     _controller.dispose();
     _focusNode.dispose();
     _scrollController.dispose();
@@ -186,13 +245,13 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back),
+                      icon: const Icon(Icons.arrow_back, color: Colors.amber),
                       onPressed: () => Navigator.of(context).pop(),
                       tooltip: '返回',
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.undo),
+                      icon: const Icon(Icons.undo, color: Colors.amber),
                       onPressed: () {
                         if (_controller.hasUndo) {
                           _controller.undo();
@@ -201,7 +260,7 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
                       tooltip: '撤销',
                     ),
                     IconButton(
-                      icon: const Icon(Icons.redo),
+                      icon: const Icon(Icons.redo, color: Colors.amber),
                       onPressed: () {
                         if (_controller.hasRedo) {
                           _controller.redo();
@@ -210,7 +269,7 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
                       tooltip: '重做',
                     ),
                     IconButton(
-                      icon: const Icon(Icons.check),
+                      icon: const Icon(Icons.check, color: Colors.amber),
                       onPressed: _handleSave,
                       tooltip: '保存',
                     ),
@@ -226,7 +285,7 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
                     placeholder: '在此输入内容...',
                     expands: true,
                     scrollable: true,
-                    padding: const EdgeInsets.fromLTRB(8, 12, 16, 100),
+                    padding: const EdgeInsets.fromLTRB(17, 12, 17, 100),
                     embedBuilders: [...FlutterQuillEmbeds.editorBuilders()],
                     customStyles: DefaultStyles(
                       h1: DefaultTextBlockStyle(

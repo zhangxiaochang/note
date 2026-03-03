@@ -6,6 +6,27 @@ import '../../domain/note.dart';
 import 'note_card.dart';
 import 'dart:math' as math;
 
+Route<bool> _editPageRoute(Note? note) {
+  return PageRouteBuilder<bool>(
+    transitionDuration: const Duration(milliseconds: 280),
+    reverseTransitionDuration: const Duration(milliseconds: 220),
+    pageBuilder: (_, __, ___) => EditPage(note: note),
+    transitionsBuilder: (_, animation, __, child) {
+      final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.06),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
 class HomePageBody extends StatelessWidget {
   final Future<List<Note>> future;
   final Future<void> Function() onRefresh;
@@ -129,9 +150,7 @@ class HomePageBody extends StatelessWidget {
                 note: note,
                 onTap: () {
                   Navigator.of(context)
-                      .push<bool>(
-                        MaterialPageRoute(builder: (_) => EditPage(note: note)),
-                      )
+                      .push<bool>(_editPageRoute(note))
                       .then((edited) {
                         if (edited == true) {
                           onRefresh();
@@ -157,9 +176,7 @@ class HomePageBody extends StatelessWidget {
                 note: note,
                 onTap: () {
                   Navigator.of(context)
-                      .push<bool>(
-                    MaterialPageRoute(builder: (_) => EditPage(note: note)),
-                  )
+                      .push<bool>(_editPageRoute(note))
                       .then((edited) {
                     if (edited == true) {
                       onRefresh();
