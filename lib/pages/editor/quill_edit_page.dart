@@ -233,172 +233,203 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final textColor = isDark ? Colors.white70 : Colors.black87;
+    final toolbarColor = isDark ? Colors.white70 : Colors.amber;
+    final bgColor = isDark ? const Color(0xFF121212) : Colors.white;
+    final placeholderColor = isDark ? Colors.white38 : Colors.grey;
+
     return SafeArea(
       top: true,
       bottom: true,
-      child: Stack(
-        children: [
-          Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.amber),
-                      onPressed: () => Navigator.of(context).pop(),
-                      tooltip: '返回',
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.undo, color: Colors.amber),
-                      onPressed: () {
-                        if (_controller.hasUndo) {
-                          _controller.undo();
-                        }
-                      },
-                      tooltip: '撤销',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.redo, color: Colors.amber),
-                      onPressed: () {
-                        if (_controller.hasRedo) {
-                          _controller.redo();
-                        }
-                      },
-                      tooltip: '重做',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.check, color: Colors.amber),
-                      onPressed: _handleSave,
-                      tooltip: '保存',
-                    ),
-                  ],
-                ),
+      child: Container(
+        color: bgColor,
+        child: Column(
+          children: [
+            // 顶部栏
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.arrow_back, color: toolbarColor),
+                    onPressed: () => Navigator.of(context).pop(),
+                    tooltip: '返回',
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: Icon(Icons.undo, color: toolbarColor),
+                    onPressed: () {
+                      if (_controller.hasUndo) _controller.undo();
+                    },
+                    tooltip: '撤销',
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.redo, color: toolbarColor),
+                    onPressed: () {
+                      if (_controller.hasRedo) _controller.redo();
+                    },
+                    tooltip: '重做',
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.check, color: toolbarColor),
+                    onPressed: _handleSave,
+                    tooltip: '保存',
+                  ),
+                ],
               ),
-              Expanded(
-                child: QuillEditor.basic(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  scrollController: _scrollController,
-                  config: QuillEditorConfig(
-                    placeholder: '在此输入内容...',
-                    expands: true,
-                    scrollable: true,
-                    padding: const EdgeInsets.fromLTRB(17, 12, 17, 100),
-                    embedBuilders: [...FlutterQuillEmbeds.editorBuilders()],
-                    customStyles: DefaultStyles(
-                      h1: DefaultTextBlockStyle(
-                        const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w600,
-                          height: 1.25,
-                          letterSpacing: -0.4,
-                          color: Colors.black87, // 确保可见
-                        ),
-                        HorizontalSpacing.zero,
-                        // ← 修正：使用 HorizontalSpacing.zero
-                        VerticalSpacing(20, 8), // top: 20, bottom: 8
-                        VerticalSpacing.zero, // lineSpacing
-                        null,
+            ),
+
+            // 编辑器
+            Expanded(
+              child: QuillEditor.basic(
+                controller: _controller,
+                focusNode: _focusNode,
+                scrollController: _scrollController,
+                config: QuillEditorConfig(
+                  placeholder: '在此输入内容...',
+                  expands: true,
+                  scrollable: true,
+                  padding: const EdgeInsets.fromLTRB(17, 12, 17, 100),
+                  embedBuilders: [...FlutterQuillEmbeds.editorBuilders()],
+                  customStyles: DefaultStyles(
+                    h1: DefaultTextBlockStyle(
+                      TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w600,
+                        height: 1.25,
+                        letterSpacing: -0.4,
+                        color: textColor,
                       ),
-                      paragraph: DefaultTextBlockStyle(
-                        const TextStyle(
-                          fontSize: 17,
-                          height: 1.45,
-                          letterSpacing: -0.2,
-                          color: Colors.black87,
-                        ),
-                        HorizontalSpacing.zero,
-                        VerticalSpacing(0, 12), // top: 0, bottom: 12
-                        VerticalSpacing.zero,
-                        null,
+                      HorizontalSpacing.zero,
+                      VerticalSpacing(20, 8),
+                      VerticalSpacing.zero,
+                      null,
+                    ),
+                    paragraph: DefaultTextBlockStyle(
+                      TextStyle(
+                        fontSize: 17,
+                        height: 1.45,
+                        letterSpacing: -0.2,
+                        color: textColor,
                       ),
-                      lists: DefaultListBlockStyle(
-                        const TextStyle(fontSize: 17, color: Colors.black87),
-                        HorizontalSpacing.zero,
-                        VerticalSpacing(8, 8),
-                        VerticalSpacing.zero,
-                        null,
-                        null,
-                      ),
-                      leading: DefaultListBlockStyle(
-                        const TextStyle(fontSize: 17, color: Colors.black87),
-                        HorizontalSpacing.zero,
-                        VerticalSpacing(8, 8),
-                        VerticalSpacing.zero,
-                        null,
-                        null,
-                      ),
+                      HorizontalSpacing.zero,
+                      VerticalSpacing(0, 12),
+                      VerticalSpacing.zero,
+                      null,
+                    ),
+                    lists: DefaultListBlockStyle(
+                      TextStyle(fontSize: 17, color: textColor),
+                      HorizontalSpacing.zero,
+                      VerticalSpacing(8, 8),
+                      VerticalSpacing.zero,
+                      null,
+                      null,
+                    ),
+                    leading: DefaultListBlockStyle(
+                      TextStyle(fontSize: 17, color: textColor),
+                      HorizontalSpacing.zero,
+                      VerticalSpacing(8, 8),
+                      VerticalSpacing.zero,
+                      null,
+                      null,
                     ),
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.format_bold),
-                      tooltip: '加粗',
-                      onPressed: () {
-                        _controller.formatSelection(Attribute.bold);
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.format_list_bulleted),
-                      tooltip: '无序列表',
-                      onPressed: () {
-                        _controller.formatSelection(Attribute.fromKeyValue('list', 'bullet'));
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.check_box),
-                      tooltip: '勾选列表',
-                      onPressed: () {
-                        _controller.formatSelection(Attribute.fromKeyValue('list', 'checked'));
-                      },
-                    ),
-                    Builder(
-                      builder: (btnContext) {
-                        return IconButton(
-                          icon: const Icon(Icons.format_size),
-                          tooltip: '字体大小',
-                          onPressed: () {
-                            final RenderBox? button = btnContext.findRenderObject() as RenderBox?;
-                            if (button == null) return;
-                            final Offset offset = button.localToGlobal(Offset.zero);
-                            _showFontSizeMenu(btnContext, offset, button.size);
-                          },
-                        );
-                      },
-                    ),
-                    Builder(
-                      builder: (btnContext) {
-                        return IconButton(
-                          icon: const Icon(Icons.color_lens),
-                          tooltip: '文字颜色',
-                          onPressed: () {
-                            final RenderBox? button = btnContext.findRenderObject() as RenderBox?;
-                            if (button == null) return;
-                            final Offset offset = button.localToGlobal(Offset.zero);
-                            _showColorMenu(btnContext, offset, button.size);
-                          },
-                        );
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.image),
-                      tooltip: '插入图片',
-                      onPressed: _insertImage,
-                    ),
-                  ],
+            ),
+
+            // 底部工具栏
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? Colors.white24 : Colors.grey.shade300,
+                  ),
                 ),
               ),
-            ],
-          ),
-        ],
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.format_bold, color: toolbarColor),
+                    tooltip: '加粗',
+                    onPressed: () {
+                      _controller.formatSelection(Attribute.bold);
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.format_list_bulleted, color: toolbarColor),
+                    tooltip: '无序列表',
+                    onPressed: () {
+                      _controller.formatSelection(
+                        Attribute.fromKeyValue('list', 'bullet'),
+                      );
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.check_box, color: toolbarColor),
+                    tooltip: '勾选列表',
+                    onPressed: () {
+                      _controller.formatSelection(
+                        Attribute.fromKeyValue('list', 'checked'),
+                      );
+                    },
+                  ),
+                  Builder(
+                    builder: (btnContext) {
+                      return IconButton(
+                        icon: Icon(Icons.format_size, color: toolbarColor),
+                        tooltip: '字体大小',
+                        onPressed: () {
+                          final RenderBox? button =
+                          btnContext.findRenderObject() as RenderBox?;
+                          if (button == null) return;
+                          final Offset offset =
+                          button.localToGlobal(Offset.zero);
+                          _showFontSizeMenu(
+                            btnContext,
+                            offset,
+                            button.size,
+                          );
+                        },
+                      );
+                    },
+                  ),
+                  Builder(
+                    builder: (btnContext) {
+                      return IconButton(
+                        icon: Icon(Icons.color_lens, color: toolbarColor),
+                        tooltip: '文字颜色',
+                        onPressed: () {
+                          final RenderBox? button =
+                          btnContext.findRenderObject() as RenderBox?;
+                          if (button == null) return;
+                          final Offset offset =
+                          button.localToGlobal(Offset.zero);
+                          _showColorMenu(
+                            btnContext,
+                            offset,
+                            button.size,
+                          );
+                        },
+                      );
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.image, color: toolbarColor),
+                    tooltip: '插入图片',
+                    onPressed: _insertImage,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

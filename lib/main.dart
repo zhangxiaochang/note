@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:provider/provider.dart';
 import 'pages/home/home_page.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:sqflite/sqflite.dart';
+import 'services/theme_provider.dart';
 
 // 👇 新增：平台判断导入
 import 'dart:io' show Platform;
@@ -19,7 +21,12 @@ void main() async {
     databaseFactory = databaseFactoryFfi;
   }
 
-  runApp(const App());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeProvider(),
+      child: const App(),
+    ),
+  );
 }
 
 class App extends StatelessWidget {
@@ -27,10 +34,12 @@ class App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ 移除了这里对 databaseFactory 的设置！
+    final themeProvider = context.watch<ThemeProvider>();
+    
     return MaterialApp(
       title: 'Note',
       debugShowCheckedModeBanner: false,
+      themeMode: themeProvider.flutterThemeMode,
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: Colors.indigo,

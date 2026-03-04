@@ -35,7 +35,7 @@ class _EditPageState extends State<EditPage> {
     final db = await DB.instance.db;   // 拿到数据库实例
     if (widget.note == null) {
       // ======== 新增 ========
-      await db.insert('notes', {
+      await db.insert('note', {
         'title': title,
         'content': plainText,
         'deltaContent': jsonEncode(content),
@@ -44,7 +44,7 @@ class _EditPageState extends State<EditPage> {
     } else {
       // ======== 更新 ========
       await db.update(
-        'notes',
+        'note',
         {
           'title': title,
           'content': plainText,

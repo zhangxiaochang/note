@@ -3,8 +3,9 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:project/pages/editor/edit_page.dart';
 import '../../dao/db.dart';
 import '../../domain/note.dart';
-import 'note_card.dart';
 import 'dart:math' as math;
+
+import 'note_card.dart';
 
 Route<bool> _editPageRoute(Note? note) {
   return PageRouteBuilder<bool>(
