@@ -35,16 +35,17 @@ class _EditPageState extends State<EditPage> {
     final db = await DB.instance.db;   // 拿到数据库实例
     if (widget.note == null) {
       // ======== 新增 ========
-      await db.insert('note', {
+      await db.insert('notes', {
         'title': title,
         'content': plainText,
         'deltaContent': jsonEncode(content),
         'createdAt': DateTime.now().millisecondsSinceEpoch,
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
       });
     } else {
       // ======== 更新 ========
       await db.update(
-        'note',
+        'notes',
         {
           'title': title,
           'content': plainText,
