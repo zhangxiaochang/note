@@ -21,6 +21,19 @@ void main() async {
     databaseFactory = databaseFactoryFfi;
   }
 
+  // 👇 设置沉浸式状态栏
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    ),
+  );
+
+  // 👇 扩展到状态栏和导航栏
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
@@ -35,7 +48,7 @@ class App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
-    
+
     return MaterialApp(
       title: 'Note',
       debugShowCheckedModeBanner: false,
@@ -43,11 +56,25 @@ class App extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: Colors.indigo,
+        // 👇 设置状态栏样式
+        appBarTheme: const AppBarTheme(
+          systemOverlayStyle: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.dark,
+          ),
+        ),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: Colors.indigo,
         brightness: Brightness.dark,
+        // 👇 设置状态栏样式（深色模式）
+        appBarTheme: const AppBarTheme(
+          systemOverlayStyle: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+          ),
+        ),
       ),
       home: const HomePage(),
       localizationsDelegates: [

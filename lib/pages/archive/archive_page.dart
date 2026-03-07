@@ -461,10 +461,6 @@ class _ArchivePageState extends State<ArchivePage> {
                                 color: isDark ? Colors.white54 : Colors.black54,
                               ),
                               border: InputBorder.none,
-                              prefixIcon: Icon(
-                                Icons.search,
-                                color: isDark ? Colors.white54 : Colors.black54,
-                              ),
                             ),
                             style: TextStyle(
                               color: isDark ? Colors.white : Colors.black,

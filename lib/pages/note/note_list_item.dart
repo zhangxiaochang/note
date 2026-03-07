@@ -3,7 +3,7 @@ import '../../domain/category.dart';
 import '../../utils/page_routes.dart';
 import 'package:flutter/material.dart';
 
-/// 列表视图中的笔记项，支持右滑显示操作按钮
+/// 列表视图中的笔记项，支持右滑显示操作按钮和删除动画
 class NoteListItem extends StatefulWidget {
   final Note note;
   final Category? category;
@@ -11,6 +11,7 @@ class NoteListItem extends StatefulWidget {
   final List<Widget> Function(BuildContext context)? onBuildActions;
   final VoidCallback? onSwipeRight;
   final Color? tintColor;
+  final VoidCallback? onDelete;
 
   const NoteListItem({
     super.key,
@@ -20,61 +21,107 @@ class NoteListItem extends StatefulWidget {
     this.onBuildActions,
     this.onSwipeRight,
     this.tintColor,
+    this.onDelete,
   });
 
   @override
-  State<NoteListItem> createState() => _NoteListItemState();
+  State<NoteListItem> createState() => NoteListItemState();
 }
 
-class _NoteListItemState extends State<NoteListItem>
-    with SingleTickerProviderStateMixin {
+class NoteListItemState extends State<NoteListItem>
+    with TickerProviderStateMixin {
   // 两个按钮的总宽度
   static const double _actionsWidth = 136;
 
   // 当前偏移量（像素）
   double _offset = 0;
 
-  late AnimationController _controller;
-  Animation<double>? _animation;
+  late AnimationController _swipeController;
+  Animation<double>? _swipeAnimation;
+
+  // 删除动画控制器
+  late AnimationController _deleteController;
+  late Animation<double> _deleteHeightAnimation;
+  late Animation<double> _deleteFadeAnimation;
+
+  bool _isDeleting = false;
 
   String get heroTag => 'note_list_${widget.note.id ?? 'new'}';
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _swipeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
-    _controller.addListener(() {
-      if (_animation != null) {
+    _swipeController.addListener(() {
+      if (_swipeAnimation != null) {
         setState(() {
-          _offset = _animation!.value;
+          _offset = _swipeAnimation!.value;
         });
       }
     });
+
+    // 初始化删除动画控制器
+    _deleteController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _deleteHeightAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _deleteController,
+      curve: Curves.easeInOut,
+    ));
+
+    _deleteFadeAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _deleteController,
+      curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
+    ));
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _swipeController.dispose();
+    _deleteController.dispose();
     super.dispose();
   }
 
-  void _animateTo(double targetOffset) {
-    _animation = Tween<double>(
+  void _animateSwipeTo(double targetOffset) {
+    _swipeAnimation = Tween<double>(
       begin: _offset,
       end: targetOffset,
     ).animate(CurvedAnimation(
-      parent: _controller,
+      parent: _swipeController,
       curve: Curves.easeOutBack,
     ));
-    _controller.forward(from: 0);
+    _swipeController.forward(from: 0);
   }
 
   void _handleSwipeRight() {
     if (widget.onSwipeRight != null) {
-      widget.onSwipeRight!();
+      // 先播放删除动画
+      delete().then((_) {
+        widget.onSwipeRight!();
+      });
+    }
+  }
+
+  /// 启动删除动画
+  Future<void> delete() async {
+    if (_isDeleting) return;
+    _isDeleting = true;
+
+    await _deleteController.forward();
+
+    if (widget.onDelete != null) {
+      widget.onDelete!();
     }
   }
 
@@ -97,7 +144,8 @@ class _NoteListItemState extends State<NoteListItem>
     final smoothArchiveProgress = Curves.easeInOut.transform(archiveProgress);
     final smoothActionProgress = Curves.easeInOut.transform(actionProgress);
 
-    return NoteHero(
+    // 如果正在删除，使用动画包装
+    Widget content = NoteHero(
       tag: heroTag,
       child: Stack(
         children: [
@@ -173,27 +221,26 @@ class _NoteListItemState extends State<NoteListItem>
               // 如果右滑超过屏幕一半，触发归档
               if (_offset > screenWidth * 0.4) {
                 _handleSwipeRight();
-                _animateTo(0);
                 return;
               }
 
               // 快速右滑
               if (velocity > 200) {
-                _animateTo(0);
+                _animateSwipeTo(0);
                 return;
               }
 
               // 快速左滑 - 显示操作按钮
               if (velocity < -200) {
-                _animateTo(-_actionsWidth);
+                _animateSwipeTo(-_actionsWidth);
                 return;
               }
 
               // 根据位置判断是显示还是隐藏操作按钮
               if (_offset < -_actionsWidth * 0.3) {
-                _animateTo(-_actionsWidth);
+                _animateSwipeTo(-_actionsWidth);
               } else {
-                _animateTo(0);
+                _animateSwipeTo(0);
               }
             },
             onTap: widget.onTap,
@@ -292,6 +339,22 @@ class _NoteListItemState extends State<NoteListItem>
         ],
       ),
     );
+
+    // 添加删除动画
+    return AnimatedBuilder(
+      animation: _deleteController,
+      builder: (context, child) {
+        return FadeTransition(
+          opacity: _deleteFadeAnimation,
+          child: SizeTransition(
+            sizeFactor: _deleteHeightAnimation,
+            axisAlignment: -1.0,
+            child: child!,
+          ),
+        );
+      },
+      child: content,
+    );
   }
 }
 
@@ -308,12 +371,6 @@ class NoteHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Hero(
-      tag: tag,
-      child: Material(
-        type: MaterialType.transparency,
-        child: child,
-      ),
-    );
+    return child;
   }
 }

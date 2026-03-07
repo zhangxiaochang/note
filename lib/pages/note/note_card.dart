@@ -191,7 +191,7 @@ class _NoteCardState extends State<NoteCard> {
     return NoteHero(
       tag: heroTag,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
         decoration: BoxDecoration(
           color: cardColor,
           borderRadius: BorderRadius.circular(16),

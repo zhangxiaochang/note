@@ -459,73 +459,62 @@ class _NotePagesState extends State<NotePages> {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF5F5F5),
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 顶部标题栏
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: _isSearching
-                  ? Row(
-                      children: [
-                        const Spacer(),
-                        SizedBox(
-                          width: 200,
-                          child: TextField(
-                            controller: _searchController,
-                            autofocus: true,
-                            decoration: InputDecoration(
-                              hintText: '搜索笔记...',
-                              hintStyle: TextStyle(
-                                color: isDark ? Colors.white54 : Colors.black54,
-                              ),
-                              border: InputBorder.none,
-                              prefixIcon: Icon(
-                                Icons.search,
-                                color: isDark ? Colors.white54 : Colors.black54,
-                              ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 顶部标题栏（添加状态栏高度）
+          Padding(
+            padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 16, 20, 8),
+            child: _isSearching
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          autofocus: true,
+                          decoration: InputDecoration(
+                            hintText: '搜索笔记...',
+                            hintStyle: TextStyle(
+                              color: isDark ? Colors.white54 : Colors.black54,
                             ),
-                            style: TextStyle(
-                              color: isDark ? Colors.white : Colors.black,
-                            ),
-                            onChanged: _onSearchChanged,
+                            border: InputBorder.none,
                           ),
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black,
+                          ),
+                          onChanged: _onSearchChanged,
                         ),
-                        IconButton(
-                          icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black),
-                          onPressed: _stopSearch,
-                        ),
-                      ],
-                    )
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black),
+                        onPressed: _stopSearch,
+                      ),
+                    ],
+                  )
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(
-                          child: InkWell(
-                            onTap: () => _showCategoryMenu(context),
-                            borderRadius: BorderRadius.circular(8),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    _currentTitle,
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark ? Colors.white : Colors.black,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                        InkWell(
+                          onTap: () => _showCategoryMenu(context),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _currentTitle,
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : Colors.black,
                                 ),
-                                const SizedBox(width: 4),
-                                Icon(
-                                  Icons.arrow_drop_down,
-                                  color: isDark ? Colors.white70 : Colors.black54,
-                                ),
-                              ],
-                            ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_drop_down,
+                                color: isDark ? Colors.white70 : Colors.black54,
+                              ),
+                            ],
                           ),
                         ),
                         Row(
@@ -554,12 +543,11 @@ class _NotePagesState extends State<NotePages> {
                 ),
               ),
             ),
-            // 笔记列表
-            Expanded(
-              child: _buildNoteListView(),
-            ),
-          ],
-        ),
+          // 笔记列表
+          Expanded(
+            child: _buildNoteListView(),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {

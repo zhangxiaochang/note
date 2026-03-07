@@ -296,7 +296,7 @@ class _HomePageBodyState extends State<HomePageBody> {
         if (widget.isCardView) {
           content = MasonryGridView.count(
             crossAxisCount: _crossAxisCount(context),
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
             mainAxisSpacing: 2,
             crossAxisSpacing: 2,
             itemCount: notes.length,
