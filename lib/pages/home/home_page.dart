@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../editor/edit_page.dart';
+import '../archive/archive_page.dart';
 import '../note/notes_page.dart';
 import '../settings/settings_page.dart';
 
@@ -111,12 +111,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   static Widget _buildArchivePage() {
-    return const Center(
-      child: Text(
-        '归档页面',
-        style: TextStyle(fontSize: 22),
-      ),
-    );
+    return const ArchivePage();
   }
 
   static Widget _buildSettingsPage() {

@@ -1,80 +1,116 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:project/pages/editor/edit_page.dart';
 import '../../dao/db.dart';
 import '../../domain/note.dart';
+import '../../domain/category.dart';
+import '../../utils/confirm_dialog.dart';
+import '../../utils/page_routes.dart';
 import 'dart:math' as math;
 
 import 'note_card.dart';
+import 'note_list_item.dart';
 
-Route<bool> _editPageRoute(Note? note) {
-  return PageRouteBuilder<bool>(
-    transitionDuration: const Duration(milliseconds: 280),
-    reverseTransitionDuration: const Duration(milliseconds: 220),
-    pageBuilder: (_, __, ___) => EditPage(note: note),
-    transitionsBuilder: (_, animation, __, child) {
-      final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-      return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 0.06),
-            end: Offset.zero,
-          ).animate(curved),
-          child: child,
-        ),
-      );
-    },
-  );
-}
-
-class HomePageBody extends StatelessWidget {
+class HomePageBody extends StatefulWidget {
   final Future<List<Note>> future;
   final Future<void> Function() onRefresh;
-  final bool isCardView; // 👈 必须有这个参数
+  final bool isCardView;
 
   const HomePageBody({
     super.key,
     required this.future,
     required this.onRefresh,
-    required this.isCardView, // 👈
+    this.isCardView = true,
   });
 
+  @override
+  State<HomePageBody> createState() => _HomePageBodyState();
+}
+
+class _HomePageBodyState extends State<HomePageBody> {
+  List<Category> _categories = [];
+  Map<int, Category> _categoryMap = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  @override
+  void didUpdateWidget(HomePageBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 当 future 变化时，重新加载分类
+    if (oldWidget.future != widget.future) {
+      _loadCategories();
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    final categories = await DB.instance.queryAllCategories();
+    if (mounted) {
+      setState(() {
+        _categories = categories;
+        _categoryMap = {for (var c in categories) c.id!: c};
+      });
+    }
+  }
+
+  Category? _getCategoryForNote(Note note) {
+    if (note.categoryId == null) return null;
+    return _categoryMap[note.categoryId];
+  }
+
   static Future<void> _deleteNote(BuildContext context, Note note) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await ConfirmDialog.show(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('删除笔记'),
-          content: Text('确定要删除 "${note.title}" 吗？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('删除'),
-            ),
-          ],
-        );
-      },
+      title: '删除笔记',
+      content: '确定要删除 "${note.title}" 吗？此操作不可恢复。',
+      actionType: ConfirmActionType.delete,
     );
 
     if (confirmed == true) {
       try {
         await DB.instance.delete(note.id!);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('已删除笔记: ${note.title}'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('删除失败: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  static Future<void> _archiveNote(BuildContext context, Note note) async {
+    try {
+      await DB.instance.archiveNote(note.id!, true);
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('已删除笔记: ${note.title}'),
+            content: Text('已归档笔记: ${note.title}'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
         );
-      } catch (e) {
+      }
+    } catch (e) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('删除失败: $e'),
+            content: Text('归档失败: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),
@@ -82,6 +118,126 @@ class HomePageBody extends StatelessWidget {
       }
     }
   }
+
+  static List<PopupMenuEntry<String>> _buildNoteMenu(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return [
+      PopupMenuItem<String>(
+        value: 'archive',
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: isDark ? 0.2 : 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.archive_outlined,
+                size: 18,
+                color: Colors.orange.withValues(alpha: 0.9),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '归档',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ],
+        ),
+      ),
+      PopupMenuItem<String>(
+        value: 'delete',
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: isDark ? 0.2 : 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.delete_outline,
+                size: 18,
+                color: Colors.red.withValues(alpha: 0.9),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '删除',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: Colors.red.withValues(alpha: 0.9),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  void _handleMenuSelected(BuildContext context, String value, Note note, VoidCallback onRefresh) {
+    switch (value) {
+      case 'archive':
+        _archiveNote(context, note).then((_) => onRefresh());
+        break;
+      case 'delete':
+        _deleteNote(context, note).then((_) => onRefresh());
+        break;
+    }
+  }
+
+  /// 构建列表视图右滑显示的操作按钮
+  List<Widget> _buildListActions(BuildContext context, Note note, VoidCallback onRefresh) {
+    return [
+      // 归档按钮
+      GestureDetector(
+        onTap: () => _archiveNote(context, note).then((_) => onRefresh()),
+        child: Container(
+          width: 48,
+          height: 48,
+          margin: const EdgeInsets.only(right: 8),
+          decoration: BoxDecoration(
+            color: Colors.orange,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: const Icon(
+            Icons.archive_outlined,
+            color: Colors.white,
+            size: 24,
+          ),
+        ),
+      ),
+      // 删除按钮
+      GestureDetector(
+        onTap: () => _deleteNote(context, note).then((_) => onRefresh()),
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.red,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: const Icon(
+            Icons.delete_outline,
+            color: Colors.white,
+            size: 24,
+          ),
+        ),
+      ),
+    ];
+  }
+
   int _crossAxisCount(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     return math.max(1, width ~/ 170);
@@ -90,7 +246,7 @@ class HomePageBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Note>>(
-      future: future,
+      future: widget.future,
       builder: (_, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -105,7 +261,7 @@ class HomePageBody extends StatelessWidget {
                 const SizedBox(height: 16),
                 Text('加载失败: ${snapshot.error}'),
                 const SizedBox(height: 16),
-                ElevatedButton(onPressed: onRefresh, child: const Text('重试')),
+                ElevatedButton(onPressed: widget.onRefresh, child: const Text('重试')),
               ],
             ),
           );
@@ -127,7 +283,7 @@ class HomePageBody extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton.icon(
-                  onPressed: onRefresh,
+                  onPressed: widget.onRefresh,
                   icon: const Icon(Icons.refresh),
                   label: const Text('刷新'),
                 ),
@@ -135,10 +291,9 @@ class HomePageBody extends StatelessWidget {
             ),
           );
         }
-        // 👇 核心修改：根据 isCardView 决定布局
+
         Widget content;
-        if (isCardView) {
-          // 卡片模式：瀑布流
+        if (widget.isCardView) {
           content = MasonryGridView.count(
             crossAxisCount: _crossAxisCount(context),
             padding: const EdgeInsets.all(8.0),
@@ -147,55 +302,60 @@ class HomePageBody extends StatelessWidget {
             itemCount: notes.length,
             itemBuilder: (_, index) {
               final note = notes[index];
+              final cardKey = GlobalKey();
               return NoteCard(
+                key: cardKey,
                 note: note,
+                category: _getCategoryForNote(note),
                 onTap: () {
+                  final RenderBox? renderBox = cardKey.currentContext?.findRenderObject() as RenderBox?;
+                  Rect? cardRect;
+                  if (renderBox != null) {
+                    cardRect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
+                  }
                   Navigator.of(context)
-                      .push<bool>(_editPageRoute(note))
+                      .push<bool>(editPageRoute(note, cardRect: cardRect))
                       .then((edited) {
                         if (edited == true) {
-                          onRefresh();
+                          widget.onRefresh();
                         }
                       });
                 },
-                onLongPress: () {
-                  _deleteNote(context, note).then((_) {
-                    onRefresh();
-                  });
-                },
+                onBuildMenu: _buildNoteMenu,
+                onMenuSelected: (value) => _handleMenuSelected(context, value, note, widget.onRefresh),
+                tintColor: Colors.blue,
               );
             },
           );
         } else {
-          // 列表模式：ListView
           content = ListView.builder(
             itemCount: notes.length,
             padding: const EdgeInsets.all(8.0),
             itemBuilder: (_, index) {
               final note = notes[index];
-              return NoteCard(
+              return NoteListItem(
+                key: ValueKey('note_list_${note.id}'),
                 note: note,
+                category: _getCategoryForNote(note),
                 onTap: () {
                   Navigator.of(context)
-                      .push<bool>(_editPageRoute(note))
+                      .push<bool>(editPageRoute(note))
                       .then((edited) {
                     if (edited == true) {
-                      onRefresh();
+                      widget.onRefresh();
                     }
                   });
                 },
-                onLongPress: () {
-                  _deleteNote(context, note).then((_) {
-                    onRefresh();
-                  });
-                },
-              );;
+                onBuildActions: (context) => _buildListActions(context, note, widget.onRefresh),
+                onSwipeRight: () => _archiveNote(context, note).then((_) => widget.onRefresh()),
+                tintColor: Colors.blue,
+              );
             },
           );
         }
-        // ✅ 关键：在这里包裹 RefreshIndicator！
+
         return RefreshIndicator(
-            onRefresh: onRefresh,
+            onRefresh: widget.onRefresh,
             child: content);
       },
     );

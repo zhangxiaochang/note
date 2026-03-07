@@ -7,6 +7,8 @@ class Note {
   final List<dynamic>? deltaContent; // 👈 富文本 Delta JSON
   final int createdAt;
   final int updatedAt;
+  final bool archived;
+  final int? categoryId; // 👈 分类ID，可为空表示未分类
 
   Note({
     this.id,
@@ -15,9 +17,11 @@ class Note {
     required this.deltaContent,
     required this.createdAt,
     required this.updatedAt,
+    this.archived = false,
+    this.categoryId,
   });
 
-  // ✅ 修复：包含 deltaContent
+  // ✅ 修复：包含 deltaContent、archived 和 categoryId
   Map<String, dynamic> toMap() => {
     'id': id,
     'title': title,
@@ -25,6 +29,8 @@ class Note {
     'deltaContent': deltaContent, // 👈 必须添加！
     'createdAt': createdAt,
     'updatedAt': updatedAt,
+    'archived': archived ? 1 : 0,
+    'categoryId': categoryId,
   };
 
   factory Note.fromMap(Map<String, dynamic> map) {
@@ -49,6 +55,26 @@ class Note {
       delta = emptyDelta;
     }
 
+    // 处理 archived 字段
+    bool isArchived = false;
+    final rawArchived = map['archived'];
+    if (rawArchived != null) {
+      if (rawArchived is int) {
+        isArchived = rawArchived == 1;
+      } else if (rawArchived is bool) {
+        isArchived = rawArchived;
+      }
+    }
+
+    // 处理 categoryId 字段
+    int? catId;
+    final rawCategoryId = map['categoryId'];
+    if (rawCategoryId != null) {
+      if (rawCategoryId is int) {
+        catId = rawCategoryId;
+      }
+    }
+
     return Note(
       id: map['id'] as int?,
       title: (map['title'] as String?) ?? '',
@@ -56,6 +82,8 @@ class Note {
       deltaContent: delta, // ✅ 确保是 List<dynamic>
       createdAt: (map['createdAt'] as int?) ?? DateTime.now().millisecondsSinceEpoch,
       updatedAt: (map['updatedAt'] as int?) ?? DateTime.now().millisecondsSinceEpoch,
+      archived: isArchived,
+      categoryId: catId,
     );
   }
   static const emptyDelta = [{'insert': '\n'}];
@@ -69,6 +97,8 @@ class Note {
       'deltaContent': deltaContent ?? emptyDelta,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
+      'archived': archived,
+      'categoryId': categoryId,
     };
   }
 
@@ -81,6 +111,30 @@ class Note {
       'deltaContent': jsonEncode(deltaContent ?? emptyDelta), // 👈 转字符串
       'createdAt': createdAt,
       'updatedAt': updatedAt,
+      'archived': archived ? 1 : 0,
+      'categoryId': categoryId,
     };
+  }
+
+  Note copyWith({
+    int? id,
+    String? title,
+    String? content,
+    List<dynamic>? deltaContent,
+    int? createdAt,
+    int? updatedAt,
+    bool? archived,
+    int? categoryId,
+  }) {
+    return Note(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      deltaContent: deltaContent ?? this.deltaContent,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      archived: archived ?? this.archived,
+      categoryId: categoryId ?? this.categoryId,
+    );
   }
 }

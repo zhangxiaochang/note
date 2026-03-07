@@ -46,6 +46,7 @@ class NoteBackupService {
           updatedAt:
               (item['updatedAt'] as int?) ??
               DateTime.now().millisecondsSinceEpoch,
+          archived: item['archived'] as bool? ?? false,
         );
 
         await db.insert(
