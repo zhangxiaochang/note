@@ -2,6 +2,7 @@ import '../../domain/note.dart';
 import '../../domain/category.dart';
 import '../../utils/page_routes.dart';
 import 'package:flutter/material.dart';
+import '../../services/theme_provider.dart';
 
 /// 卡片视图中的笔记卡片，标题后带更多按钮
 class NoteCard extends StatefulWidget {
@@ -71,20 +72,25 @@ class _NoteCardState extends State<NoteCard> {
               child: Material(
                 color: Colors.transparent,
                 child: Container(
-                  width: 140,
+                  width: 160,
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                    color: isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor,
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
+                        color: Colors.black.withOpacity(0.15),
                         blurRadius: 20,
                         offset: const Offset(0, 4),
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: _buildMenuItems(context, menuItems, isDark),
@@ -102,7 +108,13 @@ class _NoteCardState extends State<NoteCard> {
             parent: animation,
             curve: Curves.easeOut,
           ),
-          child: child,
+          child: ScaleTransition(
+            scale: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutBack,
+            ),
+            child: child,
+          ),
         );
       },
     );
@@ -185,36 +197,22 @@ class _NoteCardState extends State<NoteCard> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF2C2C2C) : Colors.white;
+    final cardColor = isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor;
     final categoryColor = widget.category?.color;
 
     return NoteHero(
       tag: heroTag,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
         decoration: BoxDecoration(
           color: cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: categoryColor ?? (isDark ? Colors.white24 : Colors.grey.shade300),
-            width: 3,
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.06),
+            width: 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: isDark
-                  ? Colors.black.withValues(alpha: 0.4)
-                  : Colors.black.withValues(alpha: 0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-            BoxShadow(
-              color: isDark
-                  ? Colors.black.withValues(alpha: 0.2)
-                  : Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
         child: Material(
           color: Colors.transparent,
@@ -222,52 +220,86 @@ class _NoteCardState extends State<NoteCard> {
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: widget.onTap,
+            mouseCursor: SystemMouseCursors.click,
+            hoverColor: isDark
+                ? Colors.white.withOpacity(0.05)
+                : Colors.black.withOpacity(0.03),
             child: Container(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 内容预览
-                  Text(
-                    widget.note.content.isEmpty ? '无内容' : widget.note.content,
-                    maxLines: 8,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDark ? Colors.white70 : Colors.black87,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // 分隔线
-                  Container(
-                    height: 1,
-                    color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade200,
-                  ),
-                  const SizedBox(height: 12),
-                  // 标题行（带更多按钮）
+                  // 标题行和分类标签
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 4,
-                        height: 16,
-                        decoration: BoxDecoration(
-                          color: categoryColor ?? (isDark ? Colors.white54 : Colors.grey.shade400),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           widget.note.title.isEmpty ? '无标题' : widget.note.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.white : Colors.black87,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w500,
+                            color: isDark
+                                ? ThemeProvider.darkTextColor
+                                : ThemeProvider.lightTextColor,
                           ),
+                        ),
+                      ),
+                      if (widget.category != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? ThemeProvider.categoryTagDarkBg
+                                : ThemeProvider.categoryTagLightBg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            widget.category!.name,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: widget.category!.color,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  // 内容预览（多行）
+                  if (widget.note.content.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.note.content,
+                      maxLines: 6,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        color: isDark
+                            ? ThemeProvider.darkSecondaryTextColor
+                            : ThemeProvider.lightSecondaryTextColor,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                  // 底部信息栏
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _formatDate(widget.note.updatedAt),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: isDark
+                              ? ThemeProvider.darkSecondaryTextColor
+                              : ThemeProvider.lightSecondaryTextColor,
                         ),
                       ),
                       // 更多按钮
@@ -275,12 +307,21 @@ class _NoteCardState extends State<NoteCard> {
                         GestureDetector(
                           key: _moreButtonKey,
                           onTap: () => _showMenu(context),
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? ThemeProvider.darkBackgroundColor
+                                  : const Color(0xFFF3F4F6),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                             child: Icon(
                               Icons.more_vert,
-                              size: 20,
-                              color: isDark ? Colors.white54 : Colors.black45,
+                              size: 16,
+                              color: isDark
+                                  ? ThemeProvider.darkSecondaryTextColor
+                                  : ThemeProvider.lightSecondaryTextColor,
                             ),
                           ),
                         ),
@@ -293,6 +334,22 @@ class _NoteCardState extends State<NoteCard> {
         ),
       ),
     );
+  }
+
+  String _formatDate(int timestamp) {
+    final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    final now = DateTime.now();
+
+    // 判断是否是今年
+    final isThisYear = date.year == now.year;
+
+    if (isThisYear) {
+      // 今年：只显示月日（单位数）
+      return '${date.month}月${date.day}日';
+    } else {
+      // 往年：显示年月日
+      return '${date.year}年${date.month}月${date.day}日';
+    }
   }
 }
 

@@ -296,7 +296,7 @@ class _HomePageBodyState extends State<HomePageBody> {
         if (widget.isCardView) {
           content = MasonryGridView.count(
             crossAxisCount: _crossAxisCount(context),
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             mainAxisSpacing: 2,
             crossAxisSpacing: 2,
             itemCount: notes.length,
@@ -330,7 +330,7 @@ class _HomePageBodyState extends State<HomePageBody> {
         } else {
           content = ListView.builder(
             itemCount: notes.length,
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             itemBuilder: (_, index) {
               final note = notes[index];
               return NoteListItem(
@@ -355,8 +355,15 @@ class _HomePageBodyState extends State<HomePageBody> {
         }
 
         return RefreshIndicator(
-            onRefresh: widget.onRefresh,
-            child: content);
+          onRefresh: widget.onRefresh,
+          color: Theme.of(context).primaryColor,
+          backgroundColor: Theme.of(context).cardColor,
+          strokeWidth: 3,
+          displacement: 60,
+          edgeOffset: 10,
+          triggerMode: RefreshIndicatorTriggerMode.onEdge,
+          child: content,
+        );
       },
     );
   }
