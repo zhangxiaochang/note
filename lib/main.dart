@@ -50,32 +50,10 @@ class App extends StatelessWidget {
     final themeProvider = context.watch<ThemeProvider>();
 
     return MaterialApp(
-      title: 'Note',
+      title: '笔记',
       debugShowCheckedModeBanner: false,
       themeMode: themeProvider.flutterThemeMode,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.indigo,
-        // 👇 设置状态栏样式
-        appBarTheme: const AppBarTheme(
-          systemOverlayStyle: SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.dark,
-          ),
-        ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.indigo,
-        brightness: Brightness.dark,
-        // 👇 设置状态栏样式（深色模式）
-        appBarTheme: const AppBarTheme(
-          systemOverlayStyle: SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.light,
-          ),
-        ),
-      ),
+      theme: themeProvider.theme,
       home: const HomePage(),
       localizationsDelegates: [
         GlobalMaterialLocalizations.delegate,

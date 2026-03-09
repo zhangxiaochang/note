@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/theme_provider.dart';
 import '../archive/archive_page.dart';
 import '../note/notes_page.dart';
 import '../settings/settings_page.dart';
@@ -20,27 +21,14 @@ class _HomePageState extends State<HomePage> {
     _buildSettingsPage(),
   ];
 
-  Color _tabColor(int index, bool isDark) {
-    final lightColors = [
-      Colors.blue,
-      Colors.orange,
-      Colors.green,
-    ];
-    final darkColors = [
-      Colors.lightBlueAccent,
-      Colors.deepOrangeAccent,
-      Colors.lightGreenAccent,
-    ];
-    return isDark ? darkColors[index] : lightColors[index];
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final currentColor = _tabColor(_currentIndex, isDark);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
+      backgroundColor: isDark 
+          ? ThemeProvider.darkBackgroundColor 
+          : ThemeProvider.lightBackgroundColor,
 
       // ====== 页面主体 ======
       body: IndexedStack(
@@ -48,59 +36,72 @@ class _HomePageState extends State<HomePage> {
         children: pages,
       ),
 
-      // ====== FAB ======
-      floatingActionButtonLocation:
-      FloatingActionButtonLocation.centerFloat,
+      // ====== 自定义底部导航栏 ======
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: isDark 
+              ? ThemeProvider.darkCardColor 
+              : ThemeProvider.lightCardColor,
+          border: Border(
+            top: BorderSide(
+              color: isDark 
+                  ? ThemeProvider.darkBorderColor 
+                  : ThemeProvider.lightBorderColor,
+              width: 0.5,
+            ),
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(0, Icons.description_outlined, '笔记', isDark),
+                _buildNavItem(1, Icons.archive_outlined, '归档', isDark),
+                _buildNavItem(2, Icons.settings_outlined, '设置', isDark),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-      // ====== BottomNavigationBar ======
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
+  Widget _buildNavItem(int index, IconData icon, String label, bool isDark) {
+    final isSelected = _currentIndex == index;
+    final selectedColor = ThemeProvider.primaryColor;
+    final unselectedColor = isDark
+        ? ThemeProvider.darkSecondaryTextColor
+        : ThemeProvider.lightSecondaryTextColor;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () {
           setState(() {
             _currentIndex = index;
           });
         },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        selectedItemColor: currentColor,
-        unselectedItemColor: isDark ? Colors.white54 : Colors.grey,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        items: [
-          BottomNavigationBarItem(
-            icon: AnimatedScale(
-              scale: _currentIndex == 0 ? 1.2 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              child: Icon(
-                _currentIndex == 0 ? Icons.note : Icons.note_outlined,
-              ),
-            ),
-            tooltip: '笔记',
-              label:""
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: isSelected
+                ? ThemeProvider.primaryColor.withOpacity(0.1)
+                : Colors.transparent,
           ),
-          BottomNavigationBarItem(
-            icon: AnimatedScale(
-              scale: _currentIndex == 1 ? 1.2 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              child: Icon(
-                _currentIndex == 1 ? Icons.archive : Icons.archive_outlined,
-              ),
+          child: AnimatedScale(
+            scale: isSelected ? 1.1 : 1.0,
+            duration: const Duration(milliseconds: 200),
+            child: Icon(
+              icon,
+              size: 24,
+              color: isSelected ? selectedColor : unselectedColor,
             ),
-            tooltip: '归档',
-              label:""
           ),
-          BottomNavigationBarItem(
-            icon: AnimatedScale(
-              scale: _currentIndex == 2 ? 1.2 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              child: Icon(
-                _currentIndex == 2 ? Icons.settings : Icons.settings_outlined,
-              ),
-            ),
-            tooltip: '设置',
-            label:""
-          ),
-        ],
+        ),
       ),
     );
   }

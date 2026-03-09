@@ -15,7 +15,7 @@ class NotePages extends StatefulWidget {
   State<NotePages> createState() => _NotePagesState();
 }
 
-class _NotePagesState extends State<NotePages> {
+class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMixin {
   List<Category> _categories = [];
   int _totalCount = 0;
   int _uncategorizedCount = 0;
@@ -25,15 +25,23 @@ class _NotePagesState extends State<NotePages> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  // 刷新动画控制器
+  late AnimationController _refreshController;
+
   @override
   void initState() {
     super.initState();
+    _refreshController = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    );
     _loadData();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _refreshController.dispose();
     super.dispose();
   }
 
@@ -458,45 +466,122 @@ class _NotePagesState extends State<NotePages> {
     final isDark = themeProvider.isDarkMode;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF5F5F5),
+      backgroundColor: isDark ? ThemeProvider.darkBackgroundColor : ThemeProvider.lightBackgroundColor,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 顶部标题栏（添加状态栏高度）
-          Padding(
+          Container(
             padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 16, 20, 8),
             child: _isSearching
                 ? Row(
                     children: [
                       Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          autofocus: true,
-                          decoration: InputDecoration(
-                            hintText: '搜索笔记...',
-                            hintStyle: TextStyle(
-                              color: isDark ? Colors.white54 : Colors.black54,
+                        child: Container(
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isDark 
+                                ? ThemeProvider.darkCardColor 
+                                : ThemeProvider.lightCardColor,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: TextField(
+                              controller: _searchController,
+                              autofocus: true,
+                              textAlignVertical: TextAlignVertical.center,
+                              decoration: InputDecoration(
+                                hintText: '搜索笔记...',
+                                hintStyle: TextStyle(
+                                  fontSize: 15,
+                                  height: 1.0,
+                                  color: isDark 
+                                      ? ThemeProvider.darkSecondaryTextColor 
+                                      : ThemeProvider.lightSecondaryTextColor,
+                                ),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                                prefixIcon: Container(
+                                  width: 40,
+                                  height: 44,
+                                  alignment: Alignment.center,
+                                  child: Icon(
+                                    Icons.search,
+                                    size: 18,
+                                    color: isDark 
+                                        ? ThemeProvider.darkSecondaryTextColor 
+                                        : ThemeProvider.lightSecondaryTextColor,
+                                  ),
+                                ),
+                                prefixIconConstraints: const BoxConstraints(
+                                  minWidth: 40,
+                                  minHeight: 44,
+                                  maxWidth: 40,
+                                  maxHeight: 44,
+                                ),
+                              ),
+                              style: TextStyle(
+                                color: isDark 
+                                    ? ThemeProvider.darkTextColor 
+                                    : ThemeProvider.lightTextColor,
+                                fontSize: 15,
+                                height: 1.0,
+                              ),
+                              onChanged: _onSearchChanged,
                             ),
-                            border: InputBorder.none,
                           ),
-                          style: TextStyle(
-                            color: isDark ? Colors.white : Colors.black,
-                          ),
-                          onChanged: _onSearchChanged,
                         ),
                       ),
-                      IconButton(
-                        icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black),
-                        onPressed: _stopSearch,
+                      const SizedBox(width: 10),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _stopSearch,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: isDark 
+                                  ? ThemeProvider.darkCardColor 
+                                  : ThemeProvider.lightCardColor,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.close,
+                              size: 18,
+                              color: isDark 
+                                  ? ThemeProvider.darkTextColor 
+                                  : ThemeProvider.lightTextColor,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        InkWell(
-                          onTap: () => _showCategoryMenu(context),
-                          borderRadius: BorderRadius.circular(8),
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // 标题和下拉
+                      GestureDetector(
+                        onTap: () => _showCategoryMenu(context),
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -505,59 +590,149 @@ class _NotePagesState extends State<NotePages> {
                                 style: TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
-                                  color: isDark ? Colors.white : Colors.black,
+                                  color: isDark 
+                                      ? ThemeProvider.darkTextColor 
+                                      : ThemeProvider.lightTextColor,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(width: 4),
                               Icon(
-                                Icons.arrow_drop_down,
-                                color: isDark ? Colors.white70 : Colors.black54,
+                                Icons.keyboard_arrow_down,
+                                size: 20,
+                                color: isDark 
+                                    ? ThemeProvider.darkSecondaryTextColor 
+                                    : ThemeProvider.lightSecondaryTextColor,
                               ),
                             ],
                           ),
                         ),
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: Icon(Icons.search, color: isDark ? Colors.white : Colors.black),
-                              onPressed: _startSearch,
+                      ),
+                      // 右侧按钮组
+                      Row(
+                        children: [
+                          // 搜索按钮
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _startSearch,
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isDark 
+                                      ? ThemeProvider.darkCardColor 
+                                      : ThemeProvider.lightCardColor,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  Icons.search,
+                                  size: 18,
+                                  color: isDark 
+                                      ? ThemeProvider.darkTextColor 
+                                      : ThemeProvider.lightTextColor,
+                                ),
+                              ),
                             ),
-                            IconButton(
-                              icon: Icon(Icons.refresh, color: isDark ? Colors.white : Colors.black),
-                              onPressed: _loadData,
+                          ),
+                          const SizedBox(width: 10),
+                          // 刷新按钮
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                _refreshController.forward(from: 0);
+                                _loadData();
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? ThemeProvider.darkCardColor
+                                      : ThemeProvider.lightCardColor,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: RotationTransition(
+                                  turns: _refreshController,
+                                  child: Icon(
+                                    Icons.refresh,
+                                    size: 18,
+                                    color: isDark
+                                        ? ThemeProvider.darkTextColor
+                                        : ThemeProvider.lightTextColor,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
-            ),
-            // 笔记数量
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: Text(
-                '${_getCurrentCount()} 条笔记',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? Colors.white54 : Colors.black54,
-                ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+          ),
+          // 笔记数量
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: Text(
+              '${_getCurrentCount()} 条笔记',
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor,
               ),
             ),
+          ),
           // 笔记列表
           Expanded(
             child: _buildNoteListView(),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await Navigator.of(context).push(editPageRoute(null, heroTag: 'note_card_new'));
-          _loadData();
-        },
-        tooltip: '新建笔记',
-        child: const Icon(Icons.add),
-        shape: const CircleBorder(),
-        backgroundColor: isDark ? Colors.lightBlueAccent : Colors.blue,
+      floatingActionButton: Container(
+        margin: const EdgeInsets.only(bottom: 24, right: 20),
+        child: FloatingActionButton(
+          onPressed: () async {
+            await Navigator.of(context).push(editPageRoute(null, heroTag: 'note_card_new'));
+            _loadData();
+          },
+          tooltip: '新建笔记',
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          highlightElevation: 0,
+          shape: const CircleBorder(),
+          child: Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFFD4A017) : const Color(0xFFFFB800),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: (isDark ? const Color(0xFFD4A017) : const Color(0xFFFFB800)).withOpacity(0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(Icons.add, size: 24, color: isDark ? Colors.black : Colors.white),
+          ),
+        ),
       ),
     );
   }

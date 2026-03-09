@@ -18,7 +18,7 @@ class ArchivePage extends StatefulWidget {
   State<ArchivePage> createState() => _ArchivePageState();
 }
 
-class _ArchivePageState extends State<ArchivePage> {
+class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStateMixin {
   List<Category> _categories = [];
   int _totalCount = 0;
   int _uncategorizedCount = 0;
@@ -27,15 +27,23 @@ class _ArchivePageState extends State<ArchivePage> {
   int? _selectedCategoryId;
   String _currentTitle = '全部归档';
 
+  // 刷新动画控制器
+  late AnimationController _refreshController;
+
   @override
   void initState() {
     super.initState();
+    _refreshController = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    );
     _loadData();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _refreshController.dispose();
     super.dispose();
   }
 
@@ -440,7 +448,7 @@ class _ArchivePageState extends State<ArchivePage> {
     final isDark = themeProvider.isDarkMode;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF5F5F5),
+      backgroundColor: isDark ? ThemeProvider.darkBackgroundColor : ThemeProvider.lightBackgroundColor,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -449,70 +457,149 @@ class _ArchivePageState extends State<ArchivePage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: _isSearching
-                  ? Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            autofocus: true,
-                            decoration: InputDecoration(
-                              hintText: '搜索归档笔记...',
-                              hintStyle: TextStyle(
-                                color: isDark ? Colors.white54 : Colors.black54,
-                              ),
-                              border: InputBorder.none,
-                            ),
-                            style: TextStyle(
-                              color: isDark ? Colors.white : Colors.black,
-                            ),
-                            onChanged: _onSearchChanged,
+                  ? Container(
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 12),
+                          Icon(
+                            Icons.search,
+                            size: 18,
+                            color: isDark ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor,
                           ),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black),
-                          onPressed: _stopSearch,
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Center(
+                              child: TextField(
+                                controller: _searchController,
+                                autofocus: true,
+                                textAlignVertical: TextAlignVertical.center,
+                                decoration: InputDecoration(
+                                  hintText: '搜索归档笔记...',
+                                  hintStyle: TextStyle(
+                                    fontSize: 15,
+                                    height: 1.0,
+                                    color: isDark ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor,
+                                  ),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                                style: TextStyle(
+                                  color: isDark ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor,
+                                  fontSize: 15,
+                                  height: 1.0,
+                                ),
+                                onChanged: _onSearchChanged,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.close, size: 18, color: isDark ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor),
+                            onPressed: _stopSearch,
+                          ),
+                        ],
+                      ),
                     )
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(
-                          child: InkWell(
-                            onTap: () => _showCategoryMenu(context),
-                            borderRadius: BorderRadius.circular(8),
+                        // 标题和下拉
+                        GestureDetector(
+                          onTap: () => _showCategoryMenu(context),
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Flexible(
-                                  child: Text(
-                                    _currentTitle,
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark ? Colors.white : Colors.black,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                                Text(
+                                  _currentTitle,
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(width: 4),
                                 Icon(
-                                  Icons.arrow_drop_down,
-                                  color: isDark ? Colors.white70 : Colors.black54,
+                                  Icons.keyboard_arrow_down,
+                                  size: 20,
+                                  color: isDark ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor,
                                 ),
                               ],
                             ),
                           ),
                         ),
+                        // 右侧按钮组
                         Row(
                           children: [
-                            IconButton(
-                              icon: Icon(Icons.search, color: isDark ? Colors.white : Colors.black),
-                              onPressed: _startSearch,
+                            // 搜索按钮
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _startSearch,
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    Icons.search,
+                                    size: 18,
+                                    color: isDark ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor,
+                                  ),
+                                ),
+                              ),
                             ),
-                            IconButton(
-                              icon: Icon(Icons.refresh, color: isDark ? Colors.white : Colors.black),
-                              onPressed: _loadData,
+                            const SizedBox(width: 10),
+                            // 刷新按钮
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  _refreshController.forward(from: 0);
+                                  _loadData();
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: RotationTransition(
+                                    turns: _refreshController,
+                                    child: Icon(
+                                      Icons.refresh,
+                                      size: 18,
+                                      color: isDark ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -526,13 +613,16 @@ class _ArchivePageState extends State<ArchivePage> {
                 '${_getCurrentCount()} 条归档笔记',
                 style: TextStyle(
                   fontSize: 14,
-                  color: isDark ? Colors.white54 : Colors.black54,
+                  color: isDark ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor,
                 ),
               ),
             ),
             // 笔记列表
             Expanded(
-              child: _buildNoteListView(),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildNoteListView(),
+              ),
             ),
           ],
         ),
@@ -587,7 +677,7 @@ class _ArchivePageState extends State<ArchivePage> {
         if (isCardView) {
           content = MasonryGridView.count(
             crossAxisCount: _crossAxisCount(context),
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
             mainAxisSpacing: 2,
             crossAxisSpacing: 2,
             itemCount: notes.length,
@@ -622,7 +712,7 @@ class _ArchivePageState extends State<ArchivePage> {
         } else {
           content = ListView.builder(
             itemCount: notes.length,
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
             itemBuilder: (_, index) {
               final note = notes[index];
               final category = _categories.firstWhere(
@@ -649,6 +739,12 @@ class _ArchivePageState extends State<ArchivePage> {
 
         return RefreshIndicator(
           onRefresh: _loadData,
+          color: Theme.of(context).primaryColor,
+          backgroundColor: Theme.of(context).cardColor,
+          strokeWidth: 3,
+          displacement: 60,
+          edgeOffset: 10,
+          triggerMode: RefreshIndicatorTriggerMode.onEdge,
           child: content,
         );
       },
