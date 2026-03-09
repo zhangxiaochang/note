@@ -211,6 +211,7 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Icon(
                               _testResult == '连接成功'
@@ -222,13 +223,16 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
                               size: 16,
                             ),
                             const SizedBox(width: 6),
-                            Text(
-                              _testResult!,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: _testResult == '连接成功'
-                                    ? Colors.green
-                                    : Colors.red,
+                            Expanded(
+                              child: Text(
+                                _testResult!,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: _testResult == '连接成功'
+                                      ? Colors.green
+                                      : Colors.red,
+                                ),
+                                softWrap: true,
                               ),
                             ),
                           ],

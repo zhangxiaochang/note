@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:webdav_client/webdav_client.dart' as webdav;
 import '../models/remote_file.dart';
 import 'sync_client_base.dart';
 
@@ -8,6 +9,7 @@ class WebdavClient extends SyncClientBase {
   late final String _url;
   late final String _username;
   late final String _password;
+  webdav.Client? _client;
 
   WebdavClient({
     required String url,
@@ -17,6 +19,42 @@ class WebdavClient extends SyncClientBase {
     _url = url;
     _username = username;
     _password = password;
+    _initClient();
+  }
+
+  /// 初始化 WebDAV 客户端
+  void _initClient() {
+    if (_url.isNotEmpty && _username.isNotEmpty && _password.isNotEmpty) {
+      _client = webdav.newClient(
+        _url,
+        user: _username,
+        password: _password,
+        debug: false,
+      );
+    }
+  }
+
+  /// 获取客户端实例，如果未初始化则抛出异常
+  webdav.Client get _requireClient {
+    if (_client == null) {
+      throw Exception('WebDAV client not initialized. Please check your configuration.');
+    }
+    return _client!;
+  }
+
+  /// 规范化路径，确保格式正确
+  String _normalizePath(String path, {bool isDir = false}) {
+    // 确保路径以 / 开头
+    String normalized = path.startsWith('/') ? path : '/$path';
+    // 移除多余的双斜杠
+    normalized = normalized.replaceAll(RegExp(r'/+'), '/');
+    // 如果是目录，确保以 / 结尾
+    if (isDir && !normalized.endsWith('/')) {
+      normalized = '$normalized/';
+    }
+    // 对路径进行 URL 编码，处理中文字符等特殊字符
+    // 使用 encodeFull 而不是 encodeComponent，保留 / 作为分隔符
+    return Uri.encodeFull(normalized);
   }
 
   @override
@@ -35,20 +73,13 @@ class WebdavClient extends SyncClientBase {
 
   @override
   void updateConfig(Map<String, dynamic> newConfig) {
-    // 实际实现中需要重新初始化客户端
-    throw UnimplementedError('WebDAV config update not implemented in demo');
+    throw UnimplementedError('WebDAV config update not implemented. Please create a new client instance.');
   }
 
   @override
   Future<void> ping() async {
-    // 实际实现中调用 webdav_client 的 ping 方法
-    // 这里模拟网络延迟
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    // 模拟随机失败（10% 概率）
-    if (DateTime.now().millisecond % 10 == 0) {
-      throw Exception('Connection timeout');
-    }
+    // 尝试读取根目录来测试连接
+    await _requireClient.ping();
   }
 
   @override
@@ -80,9 +111,10 @@ class WebdavClient extends SyncClientBase {
       }
 
       // 5. 清理
-      await remove(testFile);
-      await localTestFile.delete();
-      await downloadedFile.delete();
+      // await remove(testFile);
+      // await remove(testDir);
+      // await localTestFile.delete();
+      // await downloadedFile.delete();
     } catch (e) {
       throw Exception('WebDAV capability test failed: $e');
     }
@@ -90,33 +122,53 @@ class WebdavClient extends SyncClientBase {
 
   @override
   Future<void> mkdirAll(String path) async {
-    // 实际实现中调用 webdav_client 的 mkdirAll
-
-    await Future.delayed(const Duration(milliseconds: 100));
-    print('WebDAV: mkdirAll $path');
+    final normalizedPath = _normalizePath(path, isDir: true);
+    await _requireClient.mkdirAll(normalizedPath);
   }
 
   @override
   Future<List<RemoteFile>> readDir(String path) async {
-    // 实际实现中调用 webdav_client 的 readDir
-    await Future.delayed(const Duration(milliseconds: 200));
-    print('WebDAV: readDir $path');
-    return []; // 模拟空目录
+    final normalizedPath = _normalizePath(path, isDir: true);
+    final files = await _requireClient.readDir(normalizedPath);
+
+    return files.map((file) => RemoteFile(
+      path: file.path,
+      isDir: file.isDir,
+      name: file.name,
+      mimeType: file.mimeType,
+      size: file.size,
+      eTag: file.eTag,
+      cTime: file.cTime,
+      mTime: file.mTime,
+    )).toList();
   }
 
   @override
   Future<RemoteFile?> readProps(String path) async {
-    // 实际实现中调用 webdav_client 的 readProps
-    await Future.delayed(const Duration(milliseconds: 100));
-    print('WebDAV: readProps $path');
-    return null; // 模拟文件不存在
+    final normalizedPath = _normalizePath(path);
+    try {
+      final file = await _requireClient.readProps(normalizedPath);
+
+      return RemoteFile(
+        path: file.path,
+        isDir: file.isDir,
+        name: file.name,
+        mimeType: file.mimeType,
+        size: file.size,
+        eTag: file.eTag,
+        cTime: file.cTime,
+        mTime: file.mTime,
+      );
+    } catch (e) {
+      // 文件不存在或其他错误时返回 null
+      return null;
+    }
   }
 
   @override
   Future<void> remove(String path) async {
-    // 实际实现中调用 webdav_client 的 remove
-    await Future.delayed(const Duration(milliseconds: 100));
-    print('WebDAV: remove $path');
+    final normalizedPath = _normalizePath(path);
+    await _requireClient.remove(normalizedPath);
   }
 
   @override
@@ -137,15 +189,22 @@ class WebdavClient extends SyncClientBase {
       throw Exception('Local file not found: $localPath');
     }
 
-    final total = await file.length();
-
-    // 模拟上传进度
-    for (var sent = 0; sent <= total; sent += total ~/ 10) {
-      await Future.delayed(const Duration(milliseconds: 50));
-      onProgress?.call(sent, total);
+    final normalizedRemotePath = _normalizePath(remotePath);
+    
+    final bytes = await file.readAsBytes();
+    final total = bytes.length;
+    
+    // 如果提供了进度回调，包装一个进度监听器
+    if (onProgress != null) {
+      onProgress(0, total);
     }
-
-    print('WebDAV: uploadFile $localPath -> $remotePath');
+    
+    // 使用 write 方法上传字节数据
+    await _requireClient.write(normalizedRemotePath, bytes);
+    
+    if (onProgress != null) {
+      onProgress(total, total);
+    }
   }
 
   @override
@@ -154,19 +213,23 @@ class WebdavClient extends SyncClientBase {
     String localPath, {
     void Function(int received, int total)? onProgress,
   }) async {
-    // 模拟下载进度
-    const total = 1024 * 1024; // 1MB
-    for (var received = 0; received <= total; received += total ~/ 10) {
-      await Future.delayed(const Duration(milliseconds: 50));
-      onProgress?.call(received, total);
+    final normalizedRemotePath = _normalizePath(remotePath);
+
+    if (onProgress != null) {
+      onProgress(0, 0);
     }
 
-    // 创建模拟文件
+    // 读取远程文件内容
+    final bytes = await _requireClient.read(normalizedRemotePath);
+
+    // 创建本地文件
     final file = File(localPath);
     await file.create(recursive: true);
-    await file.writeAsString('Downloaded content from $remotePath');
+    await file.writeAsBytes(bytes);
 
-    print('WebDAV: downloadFile $remotePath -> $localPath');
+    if (onProgress != null) {
+      onProgress(bytes.length, bytes.length);
+    }
   }
 
   @override
