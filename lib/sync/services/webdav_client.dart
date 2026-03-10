@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:webdav_client/webdav_client.dart' as webdav;
 import '../models/remote_file.dart';
 import 'sync_client_base.dart';
@@ -31,6 +32,23 @@ class WebdavClient extends SyncClientBase {
         password: _password,
         debug: false,
       );
+
+      // 配置 Dio 拦截器以设置默认 Content-Type
+      // webdav_client 包的 Client 类有一个 `c` 属性暴露 Dio 实例
+      try {
+        final dio = (_client as dynamic).c as Dio;
+        dio.interceptors.add(InterceptorsWrapper(
+          onRequest: (options, handler) {
+            // 如果没有设置 Content-Type，默认设置为 application/octet-stream
+            if (options.contentType == null && options.data is List<int>) {
+              options.contentType = 'application/octet-stream';
+            }
+            handler.next(options);
+          },
+        ));
+      } catch (e) {
+        // 如果无法访问 Dio 实例，忽略错误
+      }
     }
   }
 

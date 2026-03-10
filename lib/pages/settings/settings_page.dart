@@ -2,11 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/BackupActions.dart';
 import '../../services/theme_provider.dart';
+import '../../services/webdav_config_service.dart';
+import '../../sync/models/sync_state.dart';
+import '../../sync/services/sync_service.dart';
+import '../../sync/services/webdav_client.dart';
 import '../../utils/storage_analyzer_page.dart';
 import 'webdav_config_dialog.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  bool _isUploading = false;
+  bool _isDownloading = false;
+  String? _uploadResult;
+  String? _downloadResult;
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +127,7 @@ class SettingsPage extends StatelessWidget {
                     },
                     borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
                   ),
-                  // WebDAV 同步（暂时隐藏）
+                  // WebDAV 同步
                   Divider(height: 1, color: isDark ? Colors.white12 : Colors.grey.shade200),
                   _buildSettingItem(
                     context,
@@ -121,8 +135,13 @@ class SettingsPage extends StatelessWidget {
                     subtitle: '配置云端同步',
                     icon: Icons.cloud_sync_outlined,
                     onTap: () => showWebDAVConfigDialog(context),
-                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
                   ),
+                  // 上传到云端
+                  Divider(height: 1, color: isDark ? Colors.white12 : Colors.grey.shade200),
+                  _buildUploadItem(context, isDark),
+                  // 从云端下载
+                  Divider(height: 1, color: isDark ? Colors.white12 : Colors.grey.shade200),
+                  _buildDownloadItem(context, isDark),
                 ],
               ),
             ),
@@ -552,5 +571,258 @@ class SettingsPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// 构建上传项
+  Widget _buildUploadItem(BuildContext context, bool isDark) {
+    final hasResult = _uploadResult != null;
+    final isSuccess = _uploadResult == '上传成功';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _isUploading ? null : _uploadToCloud,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: hasResult
+                      ? (isSuccess
+                          ? Colors.green.withValues(alpha: 0.2)
+                          : Colors.red.withValues(alpha: 0.2))
+                      : (isDark
+                          ? Colors.blue.withValues(alpha: 0.2)
+                          : Colors.blue.withValues(alpha: 0.1)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: _isUploading
+                    ? const Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(Colors.blue),
+                          ),
+                        ),
+                      )
+                    : Icon(
+                        hasResult
+                            ? (isSuccess ? Icons.check_circle : Icons.error)
+                            : Icons.cloud_upload_outlined,
+                        color: hasResult
+                            ? (isSuccess ? Colors.green : Colors.red)
+                            : Colors.blue,
+                        size: 20,
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '上传到云端',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hasResult
+                          ? _uploadResult!
+                          : '将本地数据上传到 WebDAV 服务器',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: hasResult
+                            ? (isSuccess ? Colors.green : Colors.red)
+                            : (isDark ? Colors.white54 : Colors.black54),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 构建下载项
+  Widget _buildDownloadItem(BuildContext context, bool isDark) {
+    final hasResult = _downloadResult != null;
+    final isSuccess = _downloadResult == '下载成功';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _isDownloading ? null : _downloadFromCloud,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: hasResult
+                      ? (isSuccess
+                          ? Colors.green.withValues(alpha: 0.2)
+                          : Colors.red.withValues(alpha: 0.2))
+                      : (isDark
+                          ? Colors.orange.withValues(alpha: 0.2)
+                          : Colors.orange.withValues(alpha: 0.1)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: _isDownloading
+                    ? const Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(Colors.orange),
+                          ),
+                        ),
+                      )
+                    : Icon(
+                        hasResult
+                            ? (isSuccess ? Icons.check_circle : Icons.error)
+                            : Icons.cloud_download_outlined,
+                        color: hasResult
+                            ? (isSuccess ? Colors.green : Colors.red)
+                            : Colors.orange,
+                        size: 20,
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '从云端下载',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hasResult
+                          ? _downloadResult!
+                          : '从 WebDAV 服务器下载数据到本地',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: hasResult
+                            ? (isSuccess ? Colors.green : Colors.red)
+                            : (isDark ? Colors.white54 : Colors.black54),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 上传到云端
+  Future<void> _uploadToCloud() async {
+    setState(() {
+      _isUploading = true;
+      _uploadResult = null;
+    });
+
+    try {
+      // 1. 检查 WebDAV 配置
+      final config = await WebDAVConfigService.loadConfig();
+      if (!config.isValid) {
+        setState(() => _uploadResult = '请先配置 WebDAV');
+        return;
+      }
+
+      // 2. 创建 WebDAV 客户端
+      final client = WebdavClient(
+        url: config.url,
+        username: config.username,
+        password: config.password,
+      );
+
+      // 3. 创建同步服务
+      final syncService = SyncService(client, context: context);
+
+      // 4. 执行上传同步
+      final result = await syncService.sync(SyncDirection.upload);
+
+      if (mounted) {
+        setState(() => _uploadResult = result.isSuccess ? '上传成功' : '上传失败: ${result.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _uploadResult = '上传失败: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
+  }
+
+  /// 从云端下载
+  Future<void> _downloadFromCloud() async {
+    setState(() {
+      _isDownloading = true;
+      _downloadResult = null;
+    });
+
+    try {
+      // 1. 检查 WebDAV 配置
+      final config = await WebDAVConfigService.loadConfig();
+      if (!config.isValid) {
+        setState(() => _downloadResult = '请先配置 WebDAV');
+        return;
+      }
+
+      // 2. 创建 WebDAV 客户端
+      final client = WebdavClient(
+        url: config.url,
+        username: config.username,
+        password: config.password,
+      );
+
+      // 3. 创建同步服务
+      final syncService = SyncService(client, context: context);
+
+      // 4. 执行下载同步
+      final result = await syncService.sync(SyncDirection.download);
+
+      if (mounted) {
+        setState(() => _downloadResult = result.isSuccess ? '下载成功' : '下载失败: ${result.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _downloadResult = '下载失败: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isDownloading = false);
+      }
+    }
   }
 }

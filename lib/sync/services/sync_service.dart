@@ -1,6 +1,8 @@
 import 'dart:io';
-import '../models/remote_file.dart';
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/sync_state.dart';
+import '../utils/sync_conflict_resolver.dart';
 import 'database_sync_manager.dart';
 import 'sync_client_base.dart';
 
@@ -8,9 +10,15 @@ import 'sync_client_base.dart';
 /// 协调整个同步流程，处理冲突解决
 class SyncService {
   final SyncClientBase _client;
-  final String _dbName = 'app_database.db';
+  final String _dbName = 'momo.db';
+  BuildContext? _context;
 
-  SyncService(this._client);
+  SyncService(this._client, {BuildContext? context}) : _context = context;
+
+  /// 设置上下文（用于显示冲突解决对话框）
+  void setContext(BuildContext context) {
+    _context = context;
+  }
 
   /// 检查是否应该同步
   Future<bool> shouldSync() async {
@@ -93,6 +101,17 @@ class SyncService {
     final remoteFile = await _client.readProps(remoteDbPath);
     final localFile = File(localDbPath);
 
+    // 如果用户明确请求上传或下载，优先使用用户的选择
+    if (requestedDirection == SyncDirection.upload) {
+      print('Sync: 用户请求上传');
+      return SyncDirection.upload;
+    }
+
+    if (requestedDirection == SyncDirection.download) {
+      print('Sync: 用户请求下载');
+      return SyncDirection.download;
+    }
+
     // 如果远程数据库不存在，直接上传
     if (remoteFile == null) {
       print('Sync: 远程数据库不存在，将上传');
@@ -121,18 +140,94 @@ class SyncService {
 
     // 如果请求双向同步，需要解决冲突
     if (requestedDirection == SyncDirection.both) {
-      // 实际项目中这里应该弹出对话框让用户选择
-      // 简化版本：选择较新的版本
-      if (localModTime.isAfter(remoteModTime)) {
-        print('Sync: 本地版本较新，将上传');
-        return SyncDirection.upload;
+      // 检查是否有上下文可以显示对话框
+      if (_context != null && _context!.mounted) {
+        final conflictDetails = SyncConflictResolver.getConflictDetails(
+          localFile,
+          remoteFile,
+        );
+
+        // 导入冲突解决对话框
+        final resolution = await showConflictResolutionDialog(
+          _context!,
+          conflictDetails: conflictDetails,
+          fileName: '数据库',
+        );
+
+        if (resolution == null) {
+          print('Sync: 用户取消冲突解决');
+          return null;
+        }
+
+        switch (resolution) {
+          case ConflictResolution.useLocal:
+            print('Sync: 用户选择使用本地版本');
+            return SyncDirection.upload;
+          case ConflictResolution.useRemote:
+            print('Sync: 用户选择使用远程版本');
+            return SyncDirection.download;
+          case ConflictResolution.needsMerge:
+            print('Sync: 用户选择合并版本');
+            // 合并逻辑需要额外实现
+            return SyncDirection.both;
+          default:
+            return null;
+        }
       } else {
-        print('Sync: 远程版本较新，将下载');
-        return SyncDirection.download;
+        // 没有上下文，使用默认策略（较新版本优先）
+        print('Sync: 无上下文，使用默认策略');
+        if (localModTime.isAfter(remoteModTime)) {
+          print('Sync: 本地版本较新，将上传');
+          return SyncDirection.upload;
+        } else {
+          print('Sync: 远程版本较新，将下载');
+          return SyncDirection.download;
+        }
       }
     }
 
     return requestedDirection;
+  }
+
+  /// 显示冲突解决对话框
+  Future<ConflictResolution?> showConflictResolutionDialog(
+    BuildContext context, {
+    required ConflictDetails conflictDetails,
+    required String fileName,
+  }) async {
+    // 延迟导入避免循环依赖
+    final result = await showDialog<ConflictResolution>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('同步冲突'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('本地和远程的 "$fileName" 存在冲突'),
+            const SizedBox(height: 16),
+            Text('本地: ${conflictDetails.localModTime}'),
+            Text('远程: ${conflictDetails.remoteModTime}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, ConflictResolution.useLocal),
+            child: const Text('使用本地'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, ConflictResolution.useRemote),
+            child: const Text('使用远程'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+    return result;
   }
 
   /// 同步数据库
@@ -220,12 +315,11 @@ class SyncService {
 
   /// 获取本地数据库路径
   Future<String> _getLocalDbPath() async {
-    // 实际项目中应该从配置中获取
-    final dbDir = Directory('${Directory.systemTemp.path}/sync_demo_db');
-    if (!await dbDir.exists()) {
-      await dbDir.create(recursive: true);
-    }
-    return '${dbDir.path}/$_dbName';
+    // 使用 path_provider 获取应用文档目录
+    final docDir = await getApplicationDocumentsDirectory();
+    final dbFolder = '${docDir.path}/memo';
+    await Directory(dbFolder).create(recursive: true);
+    return '$dbFolder/$_dbName';
   }
 
   /// 获取同步状态

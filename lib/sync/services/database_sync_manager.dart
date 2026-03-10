@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../../dao/db.dart';
 import '../models/sync_state.dart';
 import 'sync_client_base.dart';
 
@@ -50,18 +51,28 @@ class DatabaseSyncManager {
 
       print('DatabaseSync: 验证通过，创建备份');
 
-      // 步骤 3: 备份当前数据库
+      // 步骤 3: 关闭数据库连接（释放文件锁）
+      await DB.instance.close();
+      print('DatabaseSync: 数据库连接已关闭');
+
+      // 步骤 4: 备份当前数据库
       final backupPath = await _createBackup(localDbPath);
       print('DatabaseSync: 备份创建完成: $backupPath');
 
-      // 步骤 4: 原子替换数据库
+      // 步骤 5: 原子替换数据库
       await _atomicReplaceDatabase(tempDbPath, localDbPath);
+
+      // 步骤 6: 重新打开数据库
+      await DB.instance.reopen();
+      print('DatabaseSync: 数据库连接已重新打开');
 
       // 步骤 5: 验证替换后的数据库
       final finalValidation = await _validateDatabase(localDbPath);
       if (!finalValidation.isValid) {
         print('DatabaseSync: 最终验证失败，从备份恢复');
         await _recoverFromBackup(backupPath, localDbPath);
+        // 恢复后重新打开数据库
+        await DB.instance.reopen();
         return SyncResult.failure(
           '数据库替换验证失败，已从备份恢复',
           SyncFailureType.replacementFailed,
@@ -77,6 +88,8 @@ class DatabaseSyncManager {
     } catch (e) {
       print('DatabaseSync: 下载过程中出错: $e');
       await _cleanupTempFile(tempDbPath);
+      // 出错时确保重新打开数据库
+      await DB.instance.reopen();
       return SyncResult.failure(
         '数据库同步失败: $e',
         SyncFailureType.unknown,

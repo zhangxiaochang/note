@@ -292,4 +292,23 @@ class DB {
     );
     return (result.first['count'] as int?) ?? 0;
   }
+
+  /// 关闭数据库连接
+  /// 用于同步前释放文件锁
+  Future<void> close() async {
+    if (_db != null) {
+      await _db!.close();
+      _db = null;
+      print('DB: 数据库连接已关闭');
+    }
+  }
+
+  /// 重新打开数据库
+  /// 用于同步完成后恢复连接
+  Future<void> reopen() async {
+    if (_db == null) {
+      _db = await _open();
+      print('DB: 数据库连接已重新打开');
+    }
+  }
 }
