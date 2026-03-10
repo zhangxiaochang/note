@@ -5,22 +5,29 @@ import '../../domain/note.dart';
 import '../../domain/category.dart';
 import '../../utils/confirm_dialog.dart';
 import '../../utils/page_routes.dart';
+import '../../widgets/animated_list_item.dart';
 import 'dart:math' as math;
 
 import 'note_card.dart';
 import 'note_list_item.dart';
 
 class HomePageBody extends StatefulWidget {
-  final Future<List<Note>> future;
+  final Future<List<Note>>? future;
+  final List<Note>? notes;
   final Future<void> Function() onRefresh;
   final bool isCardView;
+  final bool isLoading;
+  final int refreshCount;
 
   const HomePageBody({
     super.key,
-    required this.future,
+    this.future,
+    this.notes,
     required this.onRefresh,
     this.isCardView = true,
-  });
+    this.isLoading = false,
+    this.refreshCount = 0,
+  }) : assert(future != null || notes != null, '必须提供 future 或 notes 之一');
 
   @override
   State<HomePageBody> createState() => _HomePageBodyState();
@@ -30,19 +37,42 @@ class _HomePageBodyState extends State<HomePageBody> {
   List<Category> _categories = [];
   Map<int, Category> _categoryMap = {};
 
+  // 用于跟踪是否需要播放动画
+  bool _shouldAnimate = true;
+  List<Note> _lastNotes = [];
+
+  // 记录上一次的 refreshCount，用于判断是否需要播放动画
+  int _lastRefreshCount = 0;
+
   @override
   void initState() {
     super.initState();
     _loadCategories();
+    _lastRefreshCount = widget.refreshCount;
   }
 
   @override
   void didUpdateWidget(HomePageBody oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 当 future 变化时，重新加载分类
-    if (oldWidget.future != widget.future) {
-      _loadCategories();
+    // 当 refreshCount 变化时，触发动画
+    if (oldWidget.refreshCount != widget.refreshCount) {
+      _lastRefreshCount = widget.refreshCount;
     }
+  }
+
+  /// 检查是否需要播放动画
+  bool _shouldPlayAnimation(List<Note> currentNotes) {
+    // 如果 refreshCount 变化，播放动画
+    if (_lastRefreshCount != widget.refreshCount) {
+      _lastRefreshCount = widget.refreshCount;
+      return true;
+    }
+    // 如果笔记列表发生变化，播放动画
+    if (_lastNotes.length != currentNotes.length) return true;
+    for (int i = 0; i < currentNotes.length; i++) {
+      if (_lastNotes[i].id != currentNotes[i].id) return true;
+    }
+    return false;
   }
 
   Future<void> _loadCategories() async {
@@ -245,10 +275,15 @@ class _HomePageBodyState extends State<HomePageBody> {
 
   @override
   Widget build(BuildContext context) {
+    // 如果直接传入了 notes，则不需要 FutureBuilder
+    if (widget.notes != null) {
+      return _buildContent(context, widget.notes!);
+    }
+
     return FutureBuilder<List<Note>>(
       future: widget.future,
       builder: (_, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting || widget.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
 
@@ -267,30 +302,39 @@ class _HomePageBodyState extends State<HomePageBody> {
           );
         }
 
-        final notes = snapshot.data ?? [];
-        if (notes.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.note_add, size: 64, color: Colors.grey),
-                const SizedBox(height: 16),
-                const Text('暂无笔记', style: TextStyle(fontSize: 18)),
-                const SizedBox(height: 8),
-                Text(
-                  '点击右上角 + 按钮创建新笔记',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: widget.onRefresh,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('刷新'),
-                ),
-              ],
+        return _buildContent(context, snapshot.data ?? []);
+      },
+    );
+  }
+
+  Widget _buildContent(BuildContext context, List<Note> notes) {
+    // 检查是否需要播放动画
+    _shouldAnimate = _shouldPlayAnimation(notes);
+    _lastNotes = List.from(notes);
+
+    if (notes.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.note_add, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text('暂无笔记', style: TextStyle(fontSize: 18)),
+            const SizedBox(height: 8),
+            Text(
+              '点击右上角 + 按钮创建新笔记',
+              style: TextStyle(color: Colors.grey[600]),
             ),
-          );
-        }
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: widget.onRefresh,
+              icon: const Icon(Icons.refresh),
+              label: const Text('刷新'),
+            ),
+          ],
+        ),
+      );
+    }
 
         Widget content;
         if (widget.isCardView) {
@@ -303,68 +347,115 @@ class _HomePageBodyState extends State<HomePageBody> {
             itemBuilder: (_, index) {
               final note = notes[index];
               final cardKey = GlobalKey();
-              return NoteCard(
-                key: cardKey,
-                note: note,
-                category: _getCategoryForNote(note),
-                onTap: () {
-                  final RenderBox? renderBox = cardKey.currentContext?.findRenderObject() as RenderBox?;
-                  Rect? cardRect;
-                  if (renderBox != null) {
-                    cardRect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
-                  }
-                  Navigator.of(context)
-                      .push<bool>(editPageRoute(note, cardRect: cardRect))
-                      .then((edited) {
-                        if (edited == true) {
-                          widget.onRefresh();
-                        }
-                      });
-                },
-                onBuildMenu: _buildNoteMenu,
-                onMenuSelected: (value) => _handleMenuSelected(context, value, note, widget.onRefresh),
-                tintColor: Colors.blue,
+              return AnimatedGridItem(
+                key: ValueKey('card_${note.id}_${widget.refreshCount}'),
+                index: index,
+                child: NoteCard(
+                  note: note,
+                  category: _getCategoryForNote(note),
+                  onTap: () {
+                    final RenderBox? renderBox = cardKey.currentContext?.findRenderObject() as RenderBox?;
+                    Rect? cardRect;
+                    if (renderBox != null) {
+                      cardRect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
+                    }
+                    Navigator.of(context)
+                        .push<bool>(editPageRoute(note, cardRect: cardRect))
+                        .then((edited) {
+                          if (edited == true) {
+                            widget.onRefresh();
+                          }
+                        });
+                  },
+                  onBuildMenu: _buildNoteMenu,
+                  onMenuSelected: (value) => _handleMenuSelected(context, value, note, widget.onRefresh),
+                  tintColor: Colors.blue,
+                ),
               );
             },
           );
         } else {
-          content = ListView.builder(
-            itemCount: notes.length,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemBuilder: (_, index) {
-              final note = notes[index];
-              return NoteListItem(
-                key: ValueKey('note_list_${note.id}'),
-                note: note,
-                category: _getCategoryForNote(note),
-                onTap: () {
-                  Navigator.of(context)
-                      .push<bool>(editPageRoute(note))
-                      .then((edited) {
-                    if (edited == true) {
-                      widget.onRefresh();
-                    }
-                  });
-                },
-                onBuildActions: (context) => _buildListActions(context, note, widget.onRefresh),
-                onSwipeRight: () => _archiveNote(context, note).then((_) => widget.onRefresh()),
-                tintColor: Colors.blue,
-              );
-            },
-          );
+          // 列表视图 - Windows宽屏时自动分列
+          final screenWidth = MediaQuery.of(context).size.width;
+          final isWideScreen = screenWidth > 900; // 宽屏阈值
+          final crossAxisCount = isWideScreen ? (screenWidth ~/ 450).clamp(2, 4) : 1;
+
+          if (crossAxisCount > 1) {
+            // 宽屏多列布局
+            content = MasonryGridView.count(
+              crossAxisCount: crossAxisCount,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              mainAxisSpacing: 2,
+              crossAxisSpacing: 16,
+              itemCount: notes.length,
+              itemBuilder: (_, index) {
+                final note = notes[index];
+                return AnimatedGridItem(
+                  key: ValueKey('grid_list_${note.id}_${widget.refreshCount}'),
+                  index: index,
+                  child: NoteListItem(
+                    note: note,
+                    category: _getCategoryForNote(note),
+                    onTap: () {
+                      Navigator.of(context)
+                          .push<bool>(editPageRoute(note))
+                          .then((edited) {
+                        if (edited == true) {
+                          widget.onRefresh();
+                        }
+                      });
+                    },
+                    onBuildActions: (context) => _buildListActions(context, note, widget.onRefresh),
+                    onSwipeRight: () => _archiveNote(context, note).then((_) => widget.onRefresh()),
+                    tintColor: Colors.blue,
+                  ),
+                );
+              },
+            );
+          } else {
+            // 单列布局（移动端/窄屏）
+            content = ListView.builder(
+              itemCount: notes.length,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              itemBuilder: (_, index) {
+                final note = notes[index];
+                return AnimatedListItem(
+                  key: ValueKey('list_${note.id}_${widget.refreshCount}'),
+                  index: index,
+                  child: NoteListItem(
+                    note: note,
+                    category: _getCategoryForNote(note),
+                    onTap: () {
+                      Navigator.of(context)
+                          .push<bool>(editPageRoute(note))
+                          .then((edited) {
+                        if (edited == true) {
+                          widget.onRefresh();
+                        }
+                      });
+                    },
+                    onBuildActions: (context) => _buildListActions(context, note, widget.onRefresh),
+                    onSwipeRight: () => _archiveNote(context, note).then((_) => widget.onRefresh()),
+                    tintColor: Colors.blue,
+                  ),
+                );
+              },
+            );
+          }
         }
 
-        return RefreshIndicator(
-          onRefresh: widget.onRefresh,
-          color: Theme.of(context).primaryColor,
-          backgroundColor: Theme.of(context).cardColor,
-          strokeWidth: 3,
-          displacement: 60,
-          edgeOffset: 10,
-          triggerMode: RefreshIndicatorTriggerMode.onEdge,
-          child: content,
-        );
-      },
+    return AnimationLimiter(
+      animate: _shouldAnimate,
+      child: RefreshIndicator(
+        onRefresh: widget.onRefresh,
+        color: Theme.of(context).primaryColor,
+        backgroundColor: Theme.of(context).cardColor,
+        strokeWidth: 3,
+        displacement: 60,
+        edgeOffset: 10,
+        triggerMode: RefreshIndicatorTriggerMode.onEdge,
+        child: content,
+      ),
     );
   }
 }

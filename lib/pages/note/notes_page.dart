@@ -25,8 +25,14 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  // 缓存笔记列表，避免每次搜索都查询数据库
+  List<Note> _cachedNotes = [];
+
   // 刷新动画控制器
   late AnimationController _refreshController;
+
+  // 刷新计数器，用于触发动画
+  int _refreshCount = 0;
 
   @override
   void initState() {
@@ -70,16 +76,20 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
     final categories = await DB.instance.queryAllCategories();
     final total = await DB.instance.getTotalActiveNoteCount();
     final uncategorized = await DB.instance.getUncategorizedNoteCount();
-    
+
     // 获取每个分类的笔记数量
     for (final cat in categories) {
       cat.noteCount = await DB.instance.getNoteCountByCategory(cat.id!);
     }
-    
+
+    // 缓存所有笔记
+    final notes = await DB.instance.queryActive();
+
     setState(() {
       _categories = categories;
       _totalCount = total;
       _uncategorizedCount = uncategorized;
+      _cachedNotes = notes;
       _isLoading = false;
     });
   }
@@ -650,6 +660,7 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
                             child: InkWell(
                               onTap: () {
                                 _refreshController.forward(from: 0);
+                                setState(() => _refreshCount++);
                                 _loadData();
                               },
                               borderRadius: BorderRadius.circular(12),
@@ -740,25 +751,26 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
   Widget _buildNoteListView() {
     final themeProvider = context.watch<ThemeProvider>();
     return HomePageBody(
-      future: _getFilteredNotes(),
+      notes: _getFilteredNotes(),
       onRefresh: _loadData,
       isCardView: themeProvider.isCardView,
+      refreshCount: _refreshCount,
     );
   }
 
-  Future<List<Note>> _getFilteredNotes() async {
-    final notes = await DB.instance.queryActive();
-    var filteredNotes = notes;
-    
+  List<Note> _getFilteredNotes() {
+    // 使用缓存的笔记列表，避免每次查询数据库
+    var filteredNotes = _cachedNotes;
+
     // 按分类过滤
     if (_selectedCategoryId == null) {
-      filteredNotes = notes;
+      filteredNotes = _cachedNotes;
     } else if (_selectedCategoryId == -1) {
-      filteredNotes = notes.where((n) => n.categoryId == null || n.categoryId == -1).toList();
+      filteredNotes = _cachedNotes.where((n) => n.categoryId == null || n.categoryId == -1).toList();
     } else {
-      filteredNotes = notes.where((n) => n.categoryId == _selectedCategoryId).toList();
+      filteredNotes = _cachedNotes.where((n) => n.categoryId == _selectedCategoryId).toList();
     }
-    
+
     // 按搜索词过滤
     if (_searchQuery.isNotEmpty) {
       filteredNotes = filteredNotes.where((n) {
@@ -767,7 +779,7 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
         return titleMatch || contentMatch;
       }).toList();
     }
-    
+
     return filteredNotes;
   }
 }
