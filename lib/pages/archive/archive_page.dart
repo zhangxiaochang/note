@@ -7,6 +7,7 @@ import '../../domain/category.dart';
 import '../../services/theme_provider.dart';
 import '../../utils/confirm_dialog.dart';
 import '../../utils/page_routes.dart';
+import '../../widgets/animated_list_item.dart';
 import '../note/note_card.dart';
 import '../note/note_list_item.dart';
 import 'dart:math' as math;
@@ -29,6 +30,13 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
 
   // 刷新动画控制器
   late AnimationController _refreshController;
+
+  // 用于跟踪是否需要播放动画
+  bool _shouldAnimate = true;
+  List<Note> _lastNotes = [];
+
+  // 刷新计数器，用于触发动画
+  int _refreshCount = 0;
 
   @override
   void initState() {
@@ -449,62 +457,113 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
 
     return Scaffold(
       backgroundColor: isDark ? ThemeProvider.darkBackgroundColor : ThemeProvider.lightBackgroundColor,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 顶部标题栏
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: _isSearching
-                  ? Container(
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const SizedBox(width: 12),
-                          Icon(
-                            Icons.search,
-                            size: 18,
-                            color: isDark ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 顶部标题栏（添加状态栏高度）
+          Container(
+            padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 16, 20, 8),
+            child: _isSearching
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? ThemeProvider.darkCardColor
+                                : ThemeProvider.lightCardColor,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Center(
-                              child: TextField(
-                                controller: _searchController,
-                                autofocus: true,
-                                textAlignVertical: TextAlignVertical.center,
-                                decoration: InputDecoration(
-                                  hintText: '搜索归档笔记...',
-                                  hintStyle: TextStyle(
-                                    fontSize: 15,
-                                    height: 1.0,
-                                    color: isDark ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor,
-                                  ),
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                                style: TextStyle(
-                                  color: isDark ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor,
+                          child: Center(
+                            child: TextField(
+                              controller: _searchController,
+                              autofocus: true,
+                              textAlignVertical: TextAlignVertical.center,
+                              decoration: InputDecoration(
+                                hintText: '搜索归档笔记...',
+                                hintStyle: TextStyle(
                                   fontSize: 15,
                                   height: 1.0,
+                                  color: isDark
+                                      ? ThemeProvider.darkSecondaryTextColor
+                                      : ThemeProvider.lightSecondaryTextColor,
                                 ),
-                                onChanged: _onSearchChanged,
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                                prefixIcon: Container(
+                                  width: 40,
+                                  height: 44,
+                                  alignment: Alignment.center,
+                                  child: Icon(
+                                    Icons.search,
+                                    size: 18,
+                                    color: isDark
+                                        ? ThemeProvider.darkSecondaryTextColor
+                                        : ThemeProvider.lightSecondaryTextColor,
+                                  ),
+                                ),
+                                prefixIconConstraints: const BoxConstraints(
+                                  minWidth: 40,
+                                  minHeight: 44,
+                                  maxWidth: 40,
+                                  maxHeight: 44,
+                                ),
                               ),
+                              style: TextStyle(
+                                color: isDark
+                                    ? ThemeProvider.darkTextColor
+                                    : ThemeProvider.lightTextColor,
+                                fontSize: 15,
+                                height: 1.0,
+                              ),
+                              onChanged: _onSearchChanged,
                             ),
                           ),
-                          IconButton(
-                            icon: Icon(Icons.close, size: 18, color: isDark ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor),
-                            onPressed: _stopSearch,
-                          ),
-                        ],
+                        ),
                       ),
-                    )
+                      const SizedBox(width: 10),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _stopSearch,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? ThemeProvider.darkCardColor
+                                  : ThemeProvider.lightCardColor,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.close,
+                              size: 18,
+                              color: isDark
+                                  ? ThemeProvider.darkSecondaryTextColor
+                                  : ThemeProvider.lightSecondaryTextColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -573,6 +632,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                               child: InkWell(
                                 onTap: () {
                                   _refreshController.forward(from: 0);
+                                  setState(() => _refreshCount++);
                                   _loadData();
                                 },
                                 borderRadius: BorderRadius.circular(12),
@@ -626,8 +686,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildNoteListView() {
@@ -657,6 +716,11 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
         }
 
         final notes = snapshot.data ?? [];
+
+        // 检查笔记是否发生变化，决定是否需要播放动画
+        _shouldAnimate = _haveNotesChanged(notes);
+        _lastNotes = List.from(notes);
+
         if (notes.isEmpty) {
           return Center(
             child: Column(
@@ -688,67 +752,126 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                 orElse: () => Category(name: '未分类', colorValue: Colors.grey.value, createdAt: 0),
               );
               final cardKey = GlobalKey();
-              return NoteCard(
-                key: cardKey,
-                note: note,
-                category: note.categoryId == null ? null : category,
-                onTap: () {
-                  final RenderBox? renderBox = cardKey.currentContext?.findRenderObject() as RenderBox?;
-                  Rect? cardRect;
-                  if (renderBox != null) {
-                    cardRect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
-                  }
-                  // 归档笔记以只读模式打开，且不能修改分类
-                  Navigator.of(context).push(
-                    editPageRoute(note, cardRect: cardRect, readOnly: true),
-                  ).then((_) => _loadData());
-                },
-                onBuildMenu: _buildNoteMenu,
-                onMenuSelected: (value) => _handleMenuSelected(context, value, note),
-                tintColor: Colors.orange,
+              return AnimatedGridItem(
+                key: ValueKey('grid_${note.id}_$_refreshCount'),
+                index: index,
+                child: NoteCard(
+                  note: note,
+                  category: note.categoryId == null ? null : category,
+                  onTap: () {
+                    final RenderBox? renderBox = cardKey.currentContext?.findRenderObject() as RenderBox?;
+                    Rect? cardRect;
+                    if (renderBox != null) {
+                      cardRect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
+                    }
+                    // 归档笔记以只读模式打开，且不能修改分类
+                    Navigator.of(context).push(
+                      editPageRoute(note, cardRect: cardRect, readOnly: true),
+                    ).then((_) => _loadData());
+                  },
+                  onBuildMenu: _buildNoteMenu,
+                  onMenuSelected: (value) => _handleMenuSelected(context, value, note),
+                  tintColor: Colors.orange,
+                ),
               );
             },
           );
         } else {
-          content = ListView.builder(
-            itemCount: notes.length,
-            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
-            itemBuilder: (_, index) {
-              final note = notes[index];
-              final category = _categories.firstWhere(
-                (c) => c.id == note.categoryId,
-                orElse: () => Category(name: '未分类', colorValue: Colors.grey.value, createdAt: 0),
-              );
-              return NoteListItem(
-                key: ValueKey('archive_list_${note.id}'),
-                note: note,
-                category: note.categoryId == null ? null : category,
-                onTap: () {
-                  // 归档笔记以只读模式打开，且不能修改分类
-                  Navigator.of(context).push(
-                    editPageRoute(note, readOnly: true),
-                  ).then((_) => _loadData());
-                },
-                onBuildActions: (context) => _buildListActions(context, note),
-                onSwipeRight: () => _unarchiveNote(context, note),
-                tintColor: Colors.orange,
-              );
-            },
-          );
+          // 列表视图 - Windows宽屏时自动分列
+          final screenWidth = MediaQuery.of(context).size.width;
+          final isWideScreen = screenWidth > 900; // 宽屏阈值
+          final crossAxisCount = isWideScreen ? (screenWidth ~/ 450).clamp(2, 4) : 1;
+
+          if (crossAxisCount > 1) {
+            // 宽屏多列布局
+            content = MasonryGridView.count(
+              crossAxisCount: crossAxisCount,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              mainAxisSpacing: 2,
+              crossAxisSpacing: 16,
+              itemCount: notes.length,
+              itemBuilder: (_, index) {
+                final note = notes[index];
+                final category = _categories.firstWhere(
+                  (c) => c.id == note.categoryId,
+                  orElse: () => Category(name: '未分类', colorValue: Colors.grey.value, createdAt: 0),
+                );
+                return AnimatedGridItem(
+                  key: ValueKey('grid_list_${note.id}_$_refreshCount'),
+                  index: index,
+                  child: NoteListItem(
+                    note: note,
+                    category: note.categoryId == null ? null : category,
+                    onTap: () {
+                      // 归档笔记以只读模式打开，且不能修改分类
+                      Navigator.of(context).push(
+                        editPageRoute(note, readOnly: true),
+                      ).then((_) => _loadData());
+                    },
+                    onBuildActions: (context) => _buildListActions(context, note),
+                    onSwipeRight: () => _unarchiveNote(context, note),
+                    tintColor: Colors.orange,
+                  ),
+                );
+              },
+            );
+          } else {
+            // 单列布局（移动端/窄屏）
+            content = ListView.builder(
+              itemCount: notes.length,
+              padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+              itemBuilder: (_, index) {
+                final note = notes[index];
+                final category = _categories.firstWhere(
+                  (c) => c.id == note.categoryId,
+                  orElse: () => Category(name: '未分类', colorValue: Colors.grey.value, createdAt: 0),
+                );
+                return AnimatedListItem(
+                  key: ValueKey('list_${note.id}_$_refreshCount'),
+                  index: index,
+                  child: NoteListItem(
+                    note: note,
+                    category: note.categoryId == null ? null : category,
+                    onTap: () {
+                      // 归档笔记以只读模式打开，且不能修改分类
+                      Navigator.of(context).push(
+                        editPageRoute(note, readOnly: true),
+                      ).then((_) => _loadData());
+                    },
+                    onBuildActions: (context) => _buildListActions(context, note),
+                    onSwipeRight: () => _unarchiveNote(context, note),
+                    tintColor: Colors.orange,
+                  ),
+                );
+              },
+            );
+          }
         }
 
-        return RefreshIndicator(
-          onRefresh: _loadData,
-          color: Theme.of(context).primaryColor,
-          backgroundColor: Theme.of(context).cardColor,
-          strokeWidth: 3,
-          displacement: 60,
-          edgeOffset: 10,
-          triggerMode: RefreshIndicatorTriggerMode.onEdge,
-          child: content,
+        return AnimationLimiter(
+          animate: _shouldAnimate,
+          child: RefreshIndicator(
+            onRefresh: _loadData,
+            color: Theme.of(context).primaryColor,
+            backgroundColor: Theme.of(context).cardColor,
+            strokeWidth: 3,
+            displacement: 60,
+            edgeOffset: 10,
+            triggerMode: RefreshIndicatorTriggerMode.onEdge,
+            child: content,
+          ),
         );
       },
     );
+  }
+
+  /// 检查笔记列表是否真正发生变化
+  bool _haveNotesChanged(List<Note> currentNotes) {
+    if (_lastNotes.length != currentNotes.length) return true;
+    for (int i = 0; i < currentNotes.length; i++) {
+      if (_lastNotes[i].id != currentNotes[i].id) return true;
+    }
+    return false;
   }
 }
 
