@@ -74,34 +74,6 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
     }
   }
 
-  /// 测试写入
-  Future<void> _testWrite() async {
-    final config = WebDAVConfig(
-      url: _urlController.text.trim(),
-      username: _usernameController.text.trim(),
-      password: _passwordController.text,
-    );
-
-    if (!config.isValid) {
-      setState(() => _testResult = '请填写完整的配置信息');
-      return;
-    }
-
-    setState(() {
-      _isTesting = true;
-      _testResult = null;
-    });
-
-    try {
-      final result = await WebDAVConfigService.testWrite(config);
-      setState(() => _testResult = result['message'] as String);
-    } catch (e) {
-      setState(() => _testResult = '写入测试失败: $e');
-    } finally {
-      setState(() => _isTesting = false);
-    }
-  }
-
   /// 保存配置
   Future<void> _saveConfig() async {
     final config = WebDAVConfig(
@@ -247,66 +219,35 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
             // 按钮区域
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-              child: Column(
+              child: Row(
                 children: [
-                  // 第一行按钮：测试连接、测试写入
-                  Row(
-                    children: [
-                      // 测试连接按钮
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _isTesting ? null : _testConnection,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.blue,
-                            side: const BorderSide(color: Colors.blue),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: _isTesting
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation(Colors.blue),
-                                  ),
-                                )
-                              : const Text('测试连接'),
+                  // 测试连接按钮
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _isTesting ? null : _testConnection,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.blue,
+                        side: const BorderSide(color: Colors.blue),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      // 测试写入按钮
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _isTesting ? null : _testWrite,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.orange,
-                            side: const BorderSide(color: Colors.orange),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: _isTesting
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation(Colors.orange),
-                                  ),
-                                )
-                              : const Text('测试写入'),
-                        ),
-                      ),
-                    ],
+                      child: _isTesting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation(Colors.blue),
+                              ),
+                            )
+                          : const Text('测试连接'),
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  // 第二行按钮：保存
-                  SizedBox(
-                    width: double.infinity,
+                  const SizedBox(width: 12),
+                  // 保存按钮
+                  Expanded(
                     child: ElevatedButton(
                       onPressed: _saveConfig,
                       style: ElevatedButton.styleFrom(

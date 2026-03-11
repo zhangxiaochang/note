@@ -217,8 +217,29 @@ class WebdavClient extends SyncClientBase {
       onProgress(0, total);
     }
     
-    // 使用 write 方法上传字节数据
-    await _requireClient.write(normalizedRemotePath, bytes);
+    // 使用 Dio 直接上传，设置正确的 content-type
+    try {
+      final dio = (_client as dynamic).c as Dio;
+      final url = '$_url$normalizedRemotePath';
+      
+      await dio.put(
+        url,
+        data: Stream.fromIterable([bytes]),
+        options: Options(
+          contentType: 'application/octet-stream',
+          headers: {
+            'Content-Length': total.toString(),
+          },
+        ),
+        onSendProgress: (sent, total) {
+          if (onProgress != null) {
+            onProgress(sent, total);
+          }
+        },
+      );
+    } catch (e) {
+      throw Exception('Upload failed: $e');
+    }
     
     if (onProgress != null) {
       onProgress(total, total);
