@@ -750,11 +750,13 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
 
   Widget _buildNoteListView() {
     final themeProvider = context.watch<ThemeProvider>();
+    // 加载时传入空列表，isLoading 控制骨架屏显示
     return HomePageBody(
       notes: _getFilteredNotes(),
       onRefresh: _loadData,
       isCardView: themeProvider.isCardView,
       refreshCount: _refreshCount,
+      isLoading: _isLoading,
     );
   }
 

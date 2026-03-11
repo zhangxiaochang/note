@@ -7,7 +7,7 @@ import '../../domain/category.dart';
 import '../../services/theme_provider.dart';
 import '../../utils/confirm_dialog.dart';
 import '../../utils/page_routes.dart';
-import '../../widgets/animated_list_item.dart';
+import '../../widgets/list_loading_animation.dart';
 import '../note/note_card.dart';
 import '../note/note_list_item.dart';
 import 'dart:math' as math;
@@ -28,12 +28,16 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
   int? _selectedCategoryId;
   String _currentTitle = '全部归档';
 
+  // 缓存笔记列表，避免每次搜索都查询数据库
+  List<Note> _cachedNotes = [];
+
   // 刷新动画控制器
   late AnimationController _refreshController;
 
   // 用于跟踪是否需要播放动画
   bool _shouldAnimate = true;
   List<Note> _lastNotes = [];
+  int _lastRefreshCount = 0;
 
   // 刷新计数器，用于触发动画
   int _refreshCount = 0;
@@ -71,6 +75,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
       _categories = categories;
       _totalCount = total;
       _uncategorizedCount = uncategorized;
+      _cachedNotes = archivedNotes;
       _isLoading = false;
     });
   }
@@ -98,63 +103,103 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : Colors.black87,
+                      color: isDark ? Colors.white : Colors.black,
                     ),
                   ),
                 ),
               ),
+              const Divider(height: 1),
               // 分类列表
-              Flexible(
-                child: Container(
-                  margin: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF5F5F5),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: [
-                      // 全部归档
-                      _buildMenuCategoryItem(
-                        context,
-                        color: isDark ? Colors.white70 : Colors.black54,
-                        name: '全部归档',
-                        count: _totalCount,
-                        onTap: () {
-                          Navigator.pop(context);
-                          _selectCategory(null, '全部归档');
-                        },
+              Expanded(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    // 全部归档
+                    ListTile(
+                      leading: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: const BoxDecoration(
+                          color: Colors.grey,
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                      _buildMenuDivider(isDark),
-                      // 未分类
-                      _buildMenuCategoryItem(
-                        context,
-                        color: Colors.grey,
-                        name: '未分类',
-                        count: _uncategorizedCount,
-                        onTap: () {
-                          Navigator.pop(context);
-                          _selectCategory(-1, '未分类归档');
-                        },
+                      title: Text(
+                        '全部归档',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
                       ),
-                      // 自定义分类
-                      ..._categories.expand((category) {
-                        return [
-                          _buildMenuDivider(isDark),
-                          _buildMenuCategoryItem(
-                            context,
+                      trailing: _selectedCategoryId == null
+                          ? Icon(Icons.check, color: Theme.of(context).primaryColor)
+                          : null,
+                      onTap: () {
+                        setState(() {
+                          _selectedCategoryId = null;
+                          _currentTitle = '全部归档';
+                        });
+                        Navigator.pop(context);
+                      },
+                    ),
+                    // 未分类
+                    ListTile(
+                      leading: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: const BoxDecoration(
+                          color: Colors.grey,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      title: Text(
+                        '未分类',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
+                      ),
+                      trailing: _selectedCategoryId == -1
+                          ? Icon(Icons.check, color: Theme.of(context).primaryColor)
+                          : null,
+                      onTap: () {
+                        setState(() {
+                          _selectedCategoryId = -1;
+                          _currentTitle = '未分类归档';
+                        });
+                        Navigator.pop(context);
+                      },
+                    ),
+                    // 分隔线
+                    const Divider(height: 1),
+                    // 各分类
+                    ..._categories.map((category) {
+                      return ListTile(
+                        leading: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
                             color: category.color,
-                            name: category.name,
-                            count: category.noteCount ?? 0,
-                            onTap: () {
-                              Navigator.pop(context);
-                              _selectCategory(category.id, '${category.name}归档');
-                            },
+                            shape: BoxShape.circle,
                           ),
-                        ];
-                      }),
-                    ],
-                  ),
+                        ),
+                        title: Text(
+                          category.name,
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black,
+                          ),
+                        ),
+                        trailing: _selectedCategoryId == category.id
+                            ? Icon(Icons.check, color: Theme.of(context).primaryColor)
+                            : null,
+                        onTap: () {
+                          setState(() {
+                            _selectedCategoryId = category.id;
+                            _currentTitle = '${category.name}归档';
+                          });
+                          Navigator.pop(context);
+                        },
+                      );
+                    }),
+                  ],
                 ),
               ),
             ],
@@ -162,72 +207,6 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
         );
       },
     );
-  }
-
-  Widget _buildMenuCategoryItem(
-    BuildContext context, {
-    required Color color,
-    required String name,
-    required int count,
-    required VoidCallback onTap,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            // 颜色条
-            Container(
-              width: 4,
-              height: 20,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // 分类名称
-            Expanded(
-              child: Text(
-                name,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-              ),
-            ),
-            // 笔记数量
-            Text(
-              '$count',
-              style: TextStyle(
-                fontSize: 15,
-                color: isDark ? Colors.white54 : Colors.black54,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMenuDivider(bool isDark) {
-    return Divider(
-      height: 1,
-      indent: 16,
-      endIndent: 16,
-      color: isDark ? Colors.white12 : Colors.black12,
-    );
-  }
-
-  void _selectCategory(int? categoryId, String title) {
-    setState(() {
-      _selectedCategoryId = categoryId;
-      _currentTitle = title;
-    });
   }
 
   bool _isSearching = false;
@@ -254,29 +233,19 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
     });
   }
 
-  int _getCurrentCount() {
-    if (_selectedCategoryId == null) return _totalCount;
-    if (_selectedCategoryId == -1) return _uncategorizedCount;
-    final category = _categories.firstWhere(
-      (c) => c.id == _selectedCategoryId,
-      orElse: () => Category(name: '', colorValue: Colors.grey.value, createdAt: DateTime.now().millisecondsSinceEpoch),
-    );
-    return category.noteCount ?? 0;
-  }
+  List<Note> _getFilteredNotes() {
+    // 使用缓存的笔记列表，避免每次查询数据库
+    var filteredNotes = _cachedNotes;
 
-  Future<List<Note>> _getFilteredNotes() async {
-    final notes = await DB.instance.queryArchived();
-    var filteredNotes = notes;
-    
     // 按分类过滤
     if (_selectedCategoryId == null) {
-      filteredNotes = notes;
+      filteredNotes = _cachedNotes;
     } else if (_selectedCategoryId == -1) {
-      filteredNotes = notes.where((n) => n.categoryId == null || n.categoryId == -1).toList();
+      filteredNotes = _cachedNotes.where((n) => n.categoryId == null || n.categoryId == -1).toList();
     } else {
-      filteredNotes = notes.where((n) => n.categoryId == _selectedCategoryId).toList();
+      filteredNotes = _cachedNotes.where((n) => n.categoryId == _selectedCategoryId).toList();
     }
-    
+
     // 按搜索词过滤
     if (_searchQuery.isNotEmpty) {
       filteredNotes = filteredNotes.where((n) {
@@ -285,7 +254,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
         return titleMatch || contentMatch;
       }).toList();
     }
-    
+
     return filteredNotes;
   }
 
@@ -314,13 +283,13 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
             ),
           );
         }
+        _loadData();
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('删除失败: $e'),
               backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
             ),
           );
         }
@@ -328,100 +297,61 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
     }
   }
 
-  List<PopupMenuEntry<String>> _buildNoteMenu(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return [
-      PopupMenuItem<String>(
-        value: 'unarchive',
-        child: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: isDark ? 0.2 : 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.unarchive_outlined,
-                size: 18,
-                color: Colors.blue.withValues(alpha: 0.9),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              '取消归档',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-            ),
-          ],
-        ),
-      ),
-      PopupMenuItem<String>(
-        value: 'delete',
-        child: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: isDark ? 0.2 : 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.delete_outline,
-                size: 18,
-                color: Colors.red.withValues(alpha: 0.9),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              '删除',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: Colors.red.withValues(alpha: 0.9),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ];
-  }
-
-  void _handleMenuSelected(BuildContext context, String value, Note note) {
-    switch (value) {
-      case 'unarchive':
-        _unarchiveNote(context, note);
-        break;
-      case 'delete':
-        _deleteNote(context, note);
-        break;
+  Future<void> _restoreNote(BuildContext context, Note note) async {
+    try {
+      await DB.instance.archiveNote(note.id!, false);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('已恢复笔记: ${note.title}'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      _loadData();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('恢复失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
-  /// 构建列表视图右滑显示的操作按钮
   List<Widget> _buildListActions(BuildContext context, Note note) {
     return [
-      // 取消归档按钮
+      // 恢复按钮
       GestureDetector(
-        onTap: () => _unarchiveNote(context, note),
+        onTap: () => _restoreNote(context, note),
         child: Container(
-          width: 48,
-          height: 48,
-          margin: const EdgeInsets.only(right: 8),
+          width: 80,
+          height: double.infinity,
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
           decoration: BoxDecoration(
-            color: Colors.blue,
-            borderRadius: BorderRadius.circular(24),
+            color: Colors.green,
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(
-            Icons.unarchive_outlined,
-            color: Colors.white,
-            size: 24,
+          child: const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.unarchive,
+                color: Colors.white,
+                size: 24,
+              ),
+              SizedBox(height: 4),
+              Text(
+                '恢复',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -429,16 +359,30 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
       GestureDetector(
         onTap: () => _deleteNote(context, note),
         child: Container(
-          width: 48,
-          height: 48,
+          width: 80,
+          height: double.infinity,
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
           decoration: BoxDecoration(
             color: Colors.red,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(
-            Icons.delete_outline,
-            color: Colors.white,
-            size: 24,
+          child: const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.delete_outline,
+                color: Colors.white,
+                size: 24,
+              ),
+              SizedBox(height: 4),
+              Text(
+                '删除',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -450,10 +394,45 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
     return math.max(1, width ~/ 170);
   }
 
+  List<PopupMenuItem<String>> _buildNoteMenu(BuildContext context, Note note) {
+    return [
+      const PopupMenuItem<String>(
+        value: 'restore',
+        child: Row(
+          children: [
+            Icon(Icons.unarchive, size: 20),
+            SizedBox(width: 8),
+            Text('恢复'),
+          ],
+        ),
+      ),
+      const PopupMenuItem<String>(
+        value: 'delete',
+        child: Row(
+          children: [
+            Icon(Icons.delete_outline, size: 20, color: Colors.red),
+            SizedBox(width: 8),
+            Text('删除', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  void _handleMenuSelected(BuildContext context, String value, Note note) {
+    switch (value) {
+      case 'restore':
+        _restoreNote(context, note);
+        break;
+      case 'delete':
+        _deleteNote(context, note);
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
-    final isDark = themeProvider.isDarkMode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: isDark ? ThemeProvider.darkBackgroundColor : ThemeProvider.lightBackgroundColor,
@@ -517,6 +496,21 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                                   maxWidth: 40,
                                   maxHeight: 44,
                                 ),
+                                suffixIcon: _searchQuery.isNotEmpty
+                                    ? IconButton(
+                                        icon: Icon(
+                                          Icons.clear,
+                                          size: 18,
+                                          color: isDark
+                                              ? ThemeProvider.darkSecondaryTextColor
+                                              : ThemeProvider.lightSecondaryTextColor,
+                                        ),
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          _onSearchChanged('');
+                                        },
+                                      )
+                                    : null,
                               ),
                               style: TextStyle(
                                 color: isDark
@@ -556,317 +550,326 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                               Icons.close,
                               size: 18,
                               color: isDark
-                                  ? ThemeProvider.darkSecondaryTextColor
-                                  : ThemeProvider.lightSecondaryTextColor,
+                                  ? ThemeProvider.darkTextColor
+                                  : ThemeProvider.lightTextColor,
                             ),
                           ),
                         ),
                       ),
                     ],
                   )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // 标题和下拉
-                        GestureDetector(
-                          onTap: () => _showCategoryMenu(context),
-                          child: MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _currentTitle,
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: isDark ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // 标题和下拉
+                      GestureDetector(
+                        onTap: () => _showCategoryMenu(context),
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _currentTitle,
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark
+                                      ? ThemeProvider.darkTextColor
+                                      : ThemeProvider.lightTextColor,
                                 ),
-                                const SizedBox(width: 4),
-                                Icon(
-                                  Icons.keyboard_arrow_down,
-                                  size: 20,
-                                  color: isDark ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor,
-                                ),
-                              ],
-                            ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.keyboard_arrow_down,
+                                size: 20,
+                                color: isDark
+                                    ? ThemeProvider.darkSecondaryTextColor
+                                    : ThemeProvider.lightSecondaryTextColor,
+                              ),
+                            ],
                           ),
                         ),
-                        // 右侧按钮组
-                        Row(
-                          children: [
-                            // 搜索按钮
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: _startSearch,
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor,
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.05),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Icon(
-                                    Icons.search,
-                                    size: 18,
-                                    color: isDark ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            // 刷新按钮
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () {
-                                  _refreshController.forward(from: 0);
-                                  setState(() => _refreshCount++);
-                                  _loadData();
-                                },
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor,
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.05),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: RotationTransition(
-                                    turns: _refreshController,
-                                    child: Icon(
-                                      Icons.refresh,
-                                      size: 18,
-                                      color: isDark ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor,
+                      ),
+                      // 右侧按钮组
+                      Row(
+                        children: [
+                          // 搜索按钮
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _startSearch,
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? ThemeProvider.darkCardColor
+                                      : ThemeProvider.lightCardColor,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 2),
                                     ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  Icons.search,
+                                  size: 18,
+                                  color: isDark
+                                      ? ThemeProvider.darkTextColor
+                                      : ThemeProvider.lightTextColor,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          // 刷新按钮
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                _refreshController.forward(from: 0);
+                                setState(() => _refreshCount++);
+                                _loadData();
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? ThemeProvider.darkCardColor
+                                      : ThemeProvider.lightCardColor,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: RotationTransition(
+                                  turns: _refreshController,
+                                  child: Icon(
+                                    Icons.refresh,
+                                    size: 18,
+                                    color: isDark
+                                        ? ThemeProvider.darkTextColor
+                                        : ThemeProvider.lightTextColor,
                                   ),
                                 ),
                               ),
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
-            ),
-            // 笔记数量
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: Text(
-                '${_getCurrentCount()} 条归档笔记',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor,
-                ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+          ),
+          // 笔记数量
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: Text(
+              '$_totalCount 条归档',
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark
+                    ? ThemeProvider.darkSecondaryTextColor
+                    : ThemeProvider.lightSecondaryTextColor,
               ),
             ),
-            // 笔记列表
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildNoteListView(),
-              ),
-            ),
-          ],
-        ),
-      );
+          ),
+          // 笔记列表
+          Expanded(
+            child: _buildNoteListView(),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildNoteListView() {
-    return FutureBuilder<List<Note>>(
-      future: _getFilteredNotes(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    final themeProvider = context.watch<ThemeProvider>();
+    final notes = _getFilteredNotes();
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error, size: 48, color: Colors.red),
-                const SizedBox(height: 16),
-                Text('加载失败: ${snapshot.error}'),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _loadData,
-                  child: const Text('重试'),
-                ),
-              ],
+    // 检查笔记是否发生变化，决定是否需要播放动画
+    _shouldAnimate = _haveNotesChanged(notes);
+    _lastNotes = List.from(notes);
+
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (notes.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.archive_outlined, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text('暂无归档笔记', style: TextStyle(fontSize: 18)),
+          ],
+        ),
+      );
+    }
+
+    final isCardView = themeProvider.isCardView;
+
+    Widget content;
+    if (isCardView) {
+      content = MasonryGridView.count(
+        crossAxisCount: _crossAxisCount(context),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        mainAxisSpacing: 2,
+        crossAxisSpacing: 2,
+        itemCount: notes.length,
+        itemBuilder: (_, index) {
+          final note = notes[index];
+          final category = _categories.firstWhere(
+            (c) => c.id == note.categoryId,
+            orElse: () => Category(name: '未分类', colorValue: Colors.grey.value, createdAt: 0),
+          );
+          final cardKey = GlobalKey();
+          return AnimatedListWrapper(
+            key: ValueKey('card_${note.id}_$_refreshCount'),
+            index: index,
+            config: ListAnimationConfig(
+              type: ListAnimationType.scale,
+              duration: Duration(milliseconds: 400),
+              delay: Duration(milliseconds: 80),
+            ),
+            child: NoteCard(
+              note: note,
+              category: note.categoryId == null ? null : category,
+              onTap: () {
+                final RenderBox? renderBox = cardKey.currentContext?.findRenderObject() as RenderBox?;
+                Rect? cardRect;
+                if (renderBox != null) {
+                  cardRect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
+                }
+                // 归档笔记以只读模式打开，且不能修改分类
+                Navigator.of(context).push(
+                  editPageRoute(note, cardRect: cardRect, readOnly: true),
+                ).then((_) => _loadData());
+              },
+              onBuildMenu: (ctx) => _buildNoteMenu(ctx, note),
+              onMenuSelected: (value) => _handleMenuSelected(context, value, note),
+              tintColor: Colors.orange,
             ),
           );
-        }
+        },
+      );
+    } else {
+      // 列表视图 - Windows宽屏时自动分列
+      final screenWidth = MediaQuery.of(context).size.width;
+      final isWideScreen = screenWidth > 900; // 宽屏阈值
+      final crossAxisCount = isWideScreen ? (screenWidth ~/ 450).clamp(2, 4) : 1;
 
-        final notes = snapshot.data ?? [];
-
-        // 检查笔记是否发生变化，决定是否需要播放动画
-        _shouldAnimate = _haveNotesChanged(notes);
-        _lastNotes = List.from(notes);
-
-        if (notes.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.archive_outlined, size: 64, color: Colors.grey),
-                const SizedBox(height: 16),
-                const Text('暂无归档笔记', style: TextStyle(fontSize: 18)),
-              ],
-            ),
-          );
-        }
-
-        final themeProvider = context.watch<ThemeProvider>();
-        final isCardView = themeProvider.isCardView;
-
-        Widget content;
-        if (isCardView) {
-          content = MasonryGridView.count(
-            crossAxisCount: _crossAxisCount(context),
-            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
-            mainAxisSpacing: 2,
-            crossAxisSpacing: 2,
-            itemCount: notes.length,
-            itemBuilder: (_, index) {
-              final note = notes[index];
-              final category = _categories.firstWhere(
-                (c) => c.id == note.categoryId,
-                orElse: () => Category(name: '未分类', colorValue: Colors.grey.value, createdAt: 0),
-              );
-              final cardKey = GlobalKey();
-              return AnimatedGridItem(
-                key: ValueKey('grid_${note.id}_$_refreshCount'),
-                index: index,
-                child: NoteCard(
-                  note: note,
-                  category: note.categoryId == null ? null : category,
-                  onTap: () {
-                    final RenderBox? renderBox = cardKey.currentContext?.findRenderObject() as RenderBox?;
-                    Rect? cardRect;
-                    if (renderBox != null) {
-                      cardRect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
-                    }
-                    // 归档笔记以只读模式打开，且不能修改分类
-                    Navigator.of(context).push(
-                      editPageRoute(note, cardRect: cardRect, readOnly: true),
-                    ).then((_) => _loadData());
-                  },
-                  onBuildMenu: _buildNoteMenu,
-                  onMenuSelected: (value) => _handleMenuSelected(context, value, note),
-                  tintColor: Colors.orange,
-                ),
-              );
-            },
-          );
-        } else {
-          // 列表视图 - Windows宽屏时自动分列
-          final screenWidth = MediaQuery.of(context).size.width;
-          final isWideScreen = screenWidth > 900; // 宽屏阈值
-          final crossAxisCount = isWideScreen ? (screenWidth ~/ 450).clamp(2, 4) : 1;
-
-          if (crossAxisCount > 1) {
-            // 宽屏多列布局
-            content = MasonryGridView.count(
-              crossAxisCount: crossAxisCount,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              mainAxisSpacing: 2,
-              crossAxisSpacing: 16,
-              itemCount: notes.length,
-              itemBuilder: (_, index) {
-                final note = notes[index];
-                final category = _categories.firstWhere(
-                  (c) => c.id == note.categoryId,
-                  orElse: () => Category(name: '未分类', colorValue: Colors.grey.value, createdAt: 0),
-                );
-                return AnimatedGridItem(
-                  key: ValueKey('grid_list_${note.id}_$_refreshCount'),
-                  index: index,
-                  child: NoteListItem(
-                    note: note,
-                    category: note.categoryId == null ? null : category,
-                    onTap: () {
-                      // 归档笔记以只读模式打开，且不能修改分类
-                      Navigator.of(context).push(
-                        editPageRoute(note, readOnly: true),
-                      ).then((_) => _loadData());
-                    },
-                    onBuildActions: (context) => _buildListActions(context, note),
-                    onSwipeRight: () => _unarchiveNote(context, note),
-                    tintColor: Colors.orange,
-                  ),
-                );
-              },
+      if (crossAxisCount > 1) {
+        // 宽屏多列布局
+        content = MasonryGridView.count(
+          crossAxisCount: crossAxisCount,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          mainAxisSpacing: 2,
+          crossAxisSpacing: 16,
+          itemCount: notes.length,
+          itemBuilder: (_, index) {
+            final note = notes[index];
+            final category = _categories.firstWhere(
+              (c) => c.id == note.categoryId,
+              orElse: () => Category(name: '未分类', colorValue: Colors.grey.value, createdAt: 0),
             );
-          } else {
-            // 单列布局（移动端/窄屏）
-            content = ListView.builder(
-              itemCount: notes.length,
-              padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
-              itemBuilder: (_, index) {
-                final note = notes[index];
-                final category = _categories.firstWhere(
-                  (c) => c.id == note.categoryId,
-                  orElse: () => Category(name: '未分类', colorValue: Colors.grey.value, createdAt: 0),
-                );
-                return AnimatedListItem(
-                  key: ValueKey('list_${note.id}_$_refreshCount'),
-                  index: index,
-                  child: NoteListItem(
-                    note: note,
-                    category: note.categoryId == null ? null : category,
-                    onTap: () {
-                      // 归档笔记以只读模式打开，且不能修改分类
-                      Navigator.of(context).push(
-                        editPageRoute(note, readOnly: true),
-                      ).then((_) => _loadData());
-                    },
-                    onBuildActions: (context) => _buildListActions(context, note),
-                    onSwipeRight: () => _unarchiveNote(context, note),
-                    tintColor: Colors.orange,
-                  ),
-                );
-              },
+            return AnimatedListWrapper(
+              key: ValueKey('grid_list_${note.id}_$_refreshCount'),
+              index: index,
+              config: ListAnimationConfig(
+                type: ListAnimationType.scale,
+                duration: Duration(milliseconds: 400),
+                delay: Duration(milliseconds: 80),
+              ),
+              child: NoteListItem(
+                note: note,
+                category: note.categoryId == null ? null : category,
+                onTap: () {
+                  // 归档笔记以只读模式打开，且不能修改分类
+                  Navigator.of(context).push(
+                    editPageRoute(note, readOnly: true),
+                  ).then((_) => _loadData());
+                },
+                onBuildActions: (context) => _buildListActions(context, note),
+                onSwipeRight: () => _unarchiveNote(context, note),
+                tintColor: Colors.orange,
+              ),
             );
-          }
-        }
-
-        return AnimationLimiter(
-          animate: _shouldAnimate,
-          child: RefreshIndicator(
-            onRefresh: _loadData,
-            color: Theme.of(context).primaryColor,
-            backgroundColor: Theme.of(context).cardColor,
-            strokeWidth: 3,
-            displacement: 60,
-            edgeOffset: 10,
-            triggerMode: RefreshIndicatorTriggerMode.onEdge,
-            child: content,
-          ),
+          },
         );
-      },
+      } else {
+        // 单列布局（移动端/窄屏）
+        content = ListView.builder(
+          itemCount: notes.length,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          itemBuilder: (_, index) {
+            final note = notes[index];
+            final category = _categories.firstWhere(
+              (c) => c.id == note.categoryId,
+              orElse: () => Category(name: '未分类', colorValue: Colors.grey.value, createdAt: 0),
+            );
+            return AnimatedListWrapper(
+              key: ValueKey('list_${note.id}_$_refreshCount'),
+              index: index,
+              config: ListAnimationConfig(
+                type: ListAnimationType.slideUp,
+                duration: Duration(milliseconds: 400),
+                delay: Duration(milliseconds: 80),
+              ),
+              child: NoteListItem(
+                note: note,
+                category: note.categoryId == null ? null : category,
+                onTap: () {
+                  // 归档笔记以只读模式打开，且不能修改分类
+                  Navigator.of(context).push(
+                    editPageRoute(note, readOnly: true),
+                  ).then((_) => _loadData());
+                },
+                onBuildActions: (context) => _buildListActions(context, note),
+                onSwipeRight: () => _unarchiveNote(context, note),
+                tintColor: Colors.orange,
+              ),
+            );
+          },
+        );
+      }
+    }
+
+    return AnimationLimiter(
+      animate: _shouldAnimate,
+      child: RefreshIndicator(
+        onRefresh: _loadData,
+        color: Theme.of(context).primaryColor,
+        backgroundColor: Theme.of(context).cardColor,
+        strokeWidth: 3,
+        displacement: 60,
+        edgeOffset: 10,
+        triggerMode: RefreshIndicatorTriggerMode.onEdge,
+        child: content,
+      ),
     );
   }
 
   /// 检查笔记列表是否真正发生变化
   bool _haveNotesChanged(List<Note> currentNotes) {
+    // 如果 refreshCount 变化，播放动画
+    if (_lastRefreshCount != _refreshCount) {
+      _lastRefreshCount = _refreshCount;
+      return true;
+    }
+    // 如果笔记列表发生变化，播放动画
     if (_lastNotes.length != currentNotes.length) return true;
     for (int i = 0; i < currentNotes.length; i++) {
       if (_lastNotes[i].id != currentNotes[i].id) return true;
