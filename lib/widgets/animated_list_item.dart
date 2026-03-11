@@ -34,8 +34,8 @@ class AnimatedListItem extends StatefulWidget {
     super.key,
     required this.child,
     required this.index,
-    this.duration = const Duration(milliseconds: 700),
-    this.delay = const Duration(milliseconds: 120),
+    this.duration = const Duration(milliseconds: 800),
+    this.delay = const Duration(milliseconds: 180),
   });
 
   @override
@@ -91,7 +91,7 @@ class _AnimatedListItemState extends State<AnimatedListItem>
 
     // 延迟启动动画，根据索引错开，但限制最大延迟
     final actualDelay = Duration(
-      milliseconds: (widget.delay.inMilliseconds * widget.index).clamp(0, 1000),
+      milliseconds: (widget.delay.inMilliseconds * widget.index).clamp(0, 1500),
     );
 
     Future.delayed(actualDelay, () {
@@ -134,8 +134,8 @@ class AnimatedGridItem extends StatefulWidget {
     super.key,
     required this.child,
     required this.index,
-    this.duration = const Duration(milliseconds: 700),
-    this.delay = const Duration(milliseconds: 120),
+    this.duration = const Duration(milliseconds: 800),
+    this.delay = const Duration(milliseconds: 180),
   });
 
   @override
@@ -191,7 +191,7 @@ class _AnimatedGridItemState extends State<AnimatedGridItem>
 
     // 延迟启动动画，限制最大延迟
     final actualDelay = Duration(
-      milliseconds: (widget.delay.inMilliseconds * widget.index).clamp(0, 1000),
+      milliseconds: (widget.delay.inMilliseconds * widget.index).clamp(0, 1500),
     );
 
     Future.delayed(actualDelay, () {

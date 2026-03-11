@@ -5,7 +5,7 @@ import '../../domain/note.dart';
 import '../../domain/category.dart';
 import '../../utils/confirm_dialog.dart';
 import '../../utils/page_routes.dart';
-import '../../widgets/animated_list_item.dart';
+import '../../widgets/list_loading_animation.dart';
 import 'dart:math' as math;
 
 import 'note_card.dart';
@@ -283,7 +283,7 @@ class _HomePageBodyState extends State<HomePageBody> {
     return FutureBuilder<List<Note>>(
       future: widget.future,
       builder: (_, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting || widget.isLoading) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
@@ -347,9 +347,14 @@ class _HomePageBodyState extends State<HomePageBody> {
             itemBuilder: (_, index) {
               final note = notes[index];
               final cardKey = GlobalKey();
-              return AnimatedGridItem(
+              return AnimatedListWrapper(
                 key: ValueKey('card_${note.id}_${widget.refreshCount}'),
                 index: index,
+                config: ListAnimationConfig(
+                  type: ListAnimationType.scale,
+                  duration: Duration(milliseconds: 400),
+                  delay: Duration(milliseconds: 80),
+                ),
                 child: NoteCard(
                   note: note,
                   category: _getCategoryForNote(note),
@@ -390,9 +395,14 @@ class _HomePageBodyState extends State<HomePageBody> {
               itemCount: notes.length,
               itemBuilder: (_, index) {
                 final note = notes[index];
-                return AnimatedGridItem(
+                return AnimatedListWrapper(
                   key: ValueKey('grid_list_${note.id}_${widget.refreshCount}'),
                   index: index,
+                  config: ListAnimationConfig(
+                    type: ListAnimationType.scale,
+                    duration: Duration(milliseconds: 400),
+                    delay: Duration(milliseconds: 80),
+                  ),
                   child: NoteListItem(
                     note: note,
                     category: _getCategoryForNote(note),
@@ -419,9 +429,14 @@ class _HomePageBodyState extends State<HomePageBody> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               itemBuilder: (_, index) {
                 final note = notes[index];
-                return AnimatedListItem(
+                return AnimatedListWrapper(
                   key: ValueKey('list_${note.id}_${widget.refreshCount}'),
                   index: index,
+                  config: ListAnimationConfig(
+                    type: ListAnimationType.slideUp,
+                    duration: Duration(milliseconds: 400),
+                    delay: Duration(milliseconds: 80),
+                  ),
                   child: NoteListItem(
                     note: note,
                     category: _getCategoryForNote(note),
