@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:io' show Platform;
 import '../../services/theme_provider.dart';
 import '../archive/archive_page.dart';
 import '../note/notes_page.dart';
 import '../settings/settings_page.dart';
+import '../../utils/permission_manager.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -13,6 +15,23 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
+  
+  @override
+  void initState() {
+    super.initState();
+    // Android 平台申请权限
+    if (Platform.isAndroid) {
+      _requestPermissions();
+    }
+  }
+  
+  Future<void> _requestPermissions() async {
+    // 延迟一下，等页面完全加载
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (mounted) {
+      await PermissionManager.requestAllPermissions(context);
+    }
+  }
 
   // 页面列表
   late final List<Widget> pages = [

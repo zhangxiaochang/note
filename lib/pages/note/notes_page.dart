@@ -33,6 +33,9 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
 
   // 刷新计数器，用于触发动画
   int _refreshCount = 0;
+  
+  // 分类按钮的 GlobalKey，用于定位下拉菜单
+  final GlobalKey _categoryButtonKey = GlobalKey();
 
   @override
   void initState() {
@@ -94,125 +97,495 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
     });
   }
 
-  void _showCategoryMenu(BuildContext context) {
+  void _showCategoryMenu(BuildContext context, {required GlobalKey buttonKey}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // 从 GlobalKey 获取按钮位置
+    final RenderBox? button = buttonKey.currentContext?.findRenderObject() as RenderBox?;
+    final Offset? offset = button?.localToGlobal(Offset.zero);
+    final Size? size = button?.size;
 
-    showModalBottomSheet(
+    if (offset == null || size == null) {
+      // 如果获取不到按钮位置，显示在屏幕中间
+      _showCategoryMenuCentered(context);
+      return;
+    }
+
+    // Apple 风格颜色
+    final cardColor = isDark ? const Color(0xFF2C2C2E) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF1D1D1F);
+    final secondaryTextColor = isDark ? Colors.white.withOpacity(0.6) : const Color(0xFF8E8E93);
+    final dividerColor = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E5EA);
+
+    // 计算菜单位置（在按钮下方）
+    final double menuWidth = 300;
+    final double left = offset.dx + size.width - menuWidth;
+    final double top = offset.dy + size.height + 6;
+
+    showGeneralDialog(
       context: context,
-      backgroundColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 标题栏
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: isDark ? Colors.white12 : Colors.black12,
+      barrierDismissible: true,
+      barrierLabel: '分类菜单',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Stack(
+          children: [
+            // 点击外部关闭区域
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(color: Colors.transparent),
+              ),
+            ),
+            // 菜单内容
+            Positioned(
+              left: left.clamp(16, MediaQuery.of(context).size.width - menuWidth - 16),
+              top: top,
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  width: menuWidth,
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.4 : 0.12),
+                        blurRadius: 40,
+                        offset: const Offset(0, 16),
+                        spreadRadius: -8,
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 标题栏 - Apple 风格
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
+                          decoration: BoxDecoration(
+                            color: cardColor,
+                            border: Border(
+                              bottom: BorderSide(
+                                color: dividerColor,
+                                width: 0.5,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '选择分类',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w600,
+                                  color: textColor,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  _buildAppleMenuButton(
+                                    context: context,
+                                    label: '新建',
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      _showCreateCategoryDialog(context);
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _buildAppleMenuButton(
+                                    context: context,
+                                    label: '管理',
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => const CategoryManagePage(),
+                                        ),
+                                      ).then((_) => _loadData());
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        // 分类列表 - Apple 风格
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 380),
+                          child: SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // 全部笔记
+                                _buildAppleCategoryItem(
+                                  context,
+                                  color: isDark ? Colors.white70 : const Color(0xFF8E8E93),
+                                  name: '全部笔记',
+                                  count: _totalCount,
+                                  isSelected: _selectedCategoryId == null,
+                                  textColor: textColor,
+                                  secondaryTextColor: secondaryTextColor,
+                                  dividerColor: dividerColor,
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    _selectCategory(null, '全部笔记');
+                                  },
+                                ),
+                                // 未分类
+                                _buildAppleCategoryItem(
+                                  context,
+                                  color: Colors.grey,
+                                  name: '未分类',
+                                  count: _uncategorizedCount,
+                                  isSelected: _selectedCategoryId == -1,
+                                  textColor: textColor,
+                                  secondaryTextColor: secondaryTextColor,
+                                  dividerColor: dividerColor,
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    _selectCategory(-1, '未分类');
+                                  },
+                                ),
+                                // 自定义分类
+                                ..._categories.expand((category) {
+                                  return [
+                                    _buildAppleCategoryItem(
+                                      context,
+                                      color: category.color,
+                                      name: category.name,
+                                      count: category.noteCount ?? 0,
+                                      isSelected: _selectedCategoryId == category.id,
+                                      textColor: textColor,
+                                      secondaryTextColor: secondaryTextColor,
+                                      dividerColor: dividerColor,
+                                      onTap: () {
+                                        Navigator.pop(context);
+                                        _selectCategory(category.id, category.name);
+                                      },
+                                    ),
+                                  ];
+                                }),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              ),
+            ),
+          ],
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOut,
+          ),
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.95, end: 1.0).animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutBack,
+              ),
+            ),
+            alignment: Alignment.topCenter,
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  // 备用：居中显示分类菜单（Apple 风格）
+  void _showCategoryMenuCentered(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Apple 风格颜色
+    final backgroundColor = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF5F5F7);
+    final cardColor = isDark ? const Color(0xFF2C2C2E) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF1D1D1F);
+    final secondaryTextColor = isDark ? Colors.white.withOpacity(0.6) : const Color(0xFF8E8E93);
+    final dividerColor = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E5EA);
+    
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '分类菜单',
+      barrierColor: Colors.black.withOpacity(isDark ? 0.5 : 0.2),
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: 300,
+              margin: const EdgeInsets.symmetric(horizontal: 40),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.4 : 0.1),
+                    blurRadius: 40,
+                    offset: const Offset(0, 20),
+                    spreadRadius: -8,
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      '选择分类',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : Colors.black87,
+                    // 标题栏 - Apple 风格
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        border: Border(
+                          bottom: BorderSide(
+                            color: dividerColor,
+                            width: 0.5,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '选择分类',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              _buildAppleMenuButton(
+                                context: context,
+                                label: '新建',
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  _showCreateCategoryDialog(context);
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              _buildAppleMenuButton(
+                                context: context,
+                                label: '管理',
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const CategoryManagePage(),
+                                    ),
+                                  ).then((_) => _loadData());
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    Row(
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _showCreateCategoryDialog(context);
-                          },
-                          child: const Text('新建'),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            Navigator.push(
+                    // 分类列表 - Apple 风格
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 380),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildAppleCategoryItem(
                               context,
-                              MaterialPageRoute(
-                                builder: (context) => const CategoryManagePage(),
-                              ),
-                            ).then((_) => _loadData());
-                          },
-                          child: const Text('管理'),
+                              color: isDark ? Colors.white70 : const Color(0xFF8E8E93),
+                              name: '全部笔记',
+                              count: _totalCount,
+                              isSelected: _selectedCategoryId == null,
+                              textColor: textColor,
+                              secondaryTextColor: secondaryTextColor,
+                              dividerColor: dividerColor,
+                              onTap: () {
+                                Navigator.pop(context);
+                                _selectCategory(null, '全部笔记');
+                              },
+                            ),
+                            _buildAppleCategoryItem(
+                              context,
+                              color: Colors.grey,
+                              name: '未分类',
+                              count: _uncategorizedCount,
+                              isSelected: _selectedCategoryId == -1,
+                              textColor: textColor,
+                              secondaryTextColor: secondaryTextColor,
+                              dividerColor: dividerColor,
+                              onTap: () {
+                                Navigator.pop(context);
+                                _selectCategory(-1, '未分类');
+                              },
+                            ),
+                            ..._categories.expand((category) {
+                              return [
+                                _buildAppleCategoryItem(
+                                  context,
+                                  color: category.color,
+                                  name: category.name,
+                                  count: category.noteCount ?? 0,
+                                  isSelected: _selectedCategoryId == category.id,
+                                  textColor: textColor,
+                                  secondaryTextColor: secondaryTextColor,
+                                  dividerColor: dividerColor,
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    _selectCategory(category.id, category.name);
+                                  },
+                                ),
+                              ];
+                            }),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
               ),
-              // 分类列表
-              Flexible(
-                child: Container(
-                  margin: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF5F5F5),
-                    borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOut,
+          ),
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.92, end: 1.0).animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutBack,
+              ),
+            ),
+            alignment: Alignment.topCenter,
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  // Apple 风格菜单按钮
+  Widget _buildAppleMenuButton({
+    required BuildContext context,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: Theme.of(context).primaryColor,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Apple 风格分类项
+  Widget _buildAppleCategoryItem(
+    BuildContext context, {
+    required Color color,
+    required String name,
+    required int count,
+    required bool isSelected,
+    required Color textColor,
+    required Color secondaryTextColor,
+    required Color dividerColor,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: dividerColor,
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              // 颜色指示器 - Apple 风格小圆点
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              ),
+              const SizedBox(width: 14),
+              // 分类名称
+              Expanded(
+                child: Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: textColor,
+                    letterSpacing: -0.2,
                   ),
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: [
-                      // 全部笔记
-                      _buildMenuCategoryItem(
-                        context,
-                        color: isDark ? Colors.white70 : Colors.black54,
-                        name: '全部笔记',
-                        count: _totalCount,
-                        onTap: () {
-                          Navigator.pop(context);
-                          _selectCategory(null, '全部笔记');
-                        },
-                      ),
-                      _buildMenuDivider(isDark),
-                      // 未分类
-                      _buildMenuCategoryItem(
-                        context,
-                        color: Colors.grey,
-                        name: '未分类',
-                        count: _uncategorizedCount,
-                        onTap: () {
-                          Navigator.pop(context);
-                          _selectCategory(-1, '未分类');
-                        },
-                      ),
-                      // 自定义分类
-                      ..._categories.expand((category) {
-                        return [
-                          _buildMenuDivider(isDark),
-                          _buildMenuCategoryItem(
-                            context,
-                            color: category.color,
-                            name: category.name,
-                            count: category.noteCount ?? 0,
-                            onTap: () {
-                              Navigator.pop(context);
-                              _selectCategory(category.id, category.name);
-                            },
-                          ),
-                        ];
-                      }),
-                    ],
+                ),
+              ),
+              // 选中标记
+              if (isSelected)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(
+                    Icons.check,
+                    size: 20,
+                    color: Theme.of(context).primaryColor,
                   ),
+                ),
+              // 笔记数量 - Apple 风格
+              Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: secondaryTextColor,
                 ),
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -589,7 +962,8 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
                     children: [
                       // 标题和下拉
                       GestureDetector(
-                        onTap: () => _showCategoryMenu(context),
+                        key: _categoryButtonKey,
+                        onTap: () => _showCategoryMenu(context, buttonKey: _categoryButtonKey),
                         child: MouseRegion(
                           cursor: SystemMouseCursors.click,
                           child: Row(

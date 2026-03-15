@@ -41,6 +41,9 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
 
   // 刷新计数器，用于触发动画
   int _refreshCount = 0;
+  
+  // 分类按钮的 GlobalKey，用于定位下拉菜单
+  final GlobalKey _categoryButtonKey = GlobalKey();
 
   @override
   void initState() {
@@ -82,130 +85,266 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
 
   void _showCategoryMenu(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // 从 GlobalKey 获取按钮位置
+    final RenderBox? button = _categoryButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    final Offset? offset = button?.localToGlobal(Offset.zero);
+    final Size? size = button?.size;
 
-    showModalBottomSheet(
+    // Apple 风格颜色
+    final cardColor = isDark ? const Color(0xFF2C2C2E) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF1D1D1F);
+    final secondaryTextColor = isDark ? Colors.white.withOpacity(0.6) : const Color(0xFF8E8E93);
+    final dividerColor = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E5EA);
+
+    // 计算菜单位置
+    final double menuWidth = 300;
+    final double left = offset != null && size != null 
+        ? offset.dx + size.width - menuWidth 
+        : (MediaQuery.of(context).size.width - menuWidth) / 2;
+    final double top = offset != null && size != null 
+        ? offset.dy + size.height + 6 
+        : 100;
+
+    showGeneralDialog(
       context: context,
-      backgroundColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 标题栏（归档页面没有新建按钮）
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                child: Center(
-                  child: Text(
-                    '选择分类',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : Colors.black,
+      barrierDismissible: true,
+      barrierLabel: '分类菜单',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Stack(
+          children: [
+            // 点击外部关闭区域
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(color: Colors.transparent),
+              ),
+            ),
+            // 菜单内容
+            Positioned(
+              left: left.clamp(16, MediaQuery.of(context).size.width - menuWidth - 16),
+              top: top,
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  width: menuWidth,
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.4 : 0.12),
+                        blurRadius: 40,
+                        offset: const Offset(0, 16),
+                        spreadRadius: -8,
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 标题栏 - Apple 风格（归档页面没有新建/管理按钮）
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                          decoration: BoxDecoration(
+                            color: cardColor,
+                            border: Border(
+                              bottom: BorderSide(
+                                color: dividerColor,
+                                width: 0.5,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                '选择分类',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w600,
+                                  color: textColor,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // 分类列表 - Apple 风格
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 380),
+                          child: SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // 全部归档
+                                _buildArchiveCategoryItem(
+                                  context,
+                                  color: isDark ? Colors.white70 : const Color(0xFF8E8E93),
+                                  name: '全部归档',
+                                  count: _totalCount,
+                                  isSelected: _selectedCategoryId == null,
+                                  textColor: textColor,
+                                  secondaryTextColor: secondaryTextColor,
+                                  dividerColor: dividerColor,
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedCategoryId = null;
+                                      _currentTitle = '全部归档';
+                                    });
+                                    Navigator.pop(context);
+                                  },
+                                ),
+                                // 未分类
+                                _buildArchiveCategoryItem(
+                                  context,
+                                  color: Colors.grey,
+                                  name: '未分类',
+                                  count: _uncategorizedCount,
+                                  isSelected: _selectedCategoryId == -1,
+                                  textColor: textColor,
+                                  secondaryTextColor: secondaryTextColor,
+                                  dividerColor: dividerColor,
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedCategoryId = -1;
+                                      _currentTitle = '未分类归档';
+                                    });
+                                    Navigator.pop(context);
+                                  },
+                                ),
+                                // 各分类
+                                ..._categories.map((category) {
+                                  return _buildArchiveCategoryItem(
+                                    context,
+                                    color: category.color,
+                                    name: category.name,
+                                    count: category.noteCount ?? 0,
+                                    isSelected: _selectedCategoryId == category.id,
+                                    textColor: textColor,
+                                    secondaryTextColor: secondaryTextColor,
+                                    dividerColor: dividerColor,
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedCategoryId = category.id;
+                                        _currentTitle = '${category.name}归档';
+                                      });
+                                      Navigator.pop(context);
+                                    },
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-              const Divider(height: 1),
-              // 分类列表
+            ),
+          ],
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOut,
+          ),
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.92, end: 1.0).animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutBack,
+              ),
+            ),
+            alignment: Alignment.topCenter,
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  // Apple 风格分类项（归档页面）
+  Widget _buildArchiveCategoryItem(
+    BuildContext context, {
+    required Color color,
+    required String name,
+    required int count,
+    required bool isSelected,
+    required Color textColor,
+    required Color secondaryTextColor,
+    required Color dividerColor,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: dividerColor,
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              // 颜色指示器 - Apple 风格小圆点
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              ),
+              const SizedBox(width: 14),
+              // 分类名称
               Expanded(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    // 全部归档
-                    ListTile(
-                      leading: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: const BoxDecoration(
-                          color: Colors.grey,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      title: Text(
-                        '全部归档',
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black,
-                        ),
-                      ),
-                      trailing: _selectedCategoryId == null
-                          ? Icon(Icons.check, color: Theme.of(context).primaryColor)
-                          : null,
-                      onTap: () {
-                        setState(() {
-                          _selectedCategoryId = null;
-                          _currentTitle = '全部归档';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    // 未分类
-                    ListTile(
-                      leading: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: const BoxDecoration(
-                          color: Colors.grey,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      title: Text(
-                        '未分类',
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black,
-                        ),
-                      ),
-                      trailing: _selectedCategoryId == -1
-                          ? Icon(Icons.check, color: Theme.of(context).primaryColor)
-                          : null,
-                      onTap: () {
-                        setState(() {
-                          _selectedCategoryId = -1;
-                          _currentTitle = '未分类归档';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    // 分隔线
-                    const Divider(height: 1),
-                    // 各分类
-                    ..._categories.map((category) {
-                      return ListTile(
-                        leading: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: category.color,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        title: Text(
-                          category.name,
-                          style: TextStyle(
-                            color: isDark ? Colors.white : Colors.black,
-                          ),
-                        ),
-                        trailing: _selectedCategoryId == category.id
-                            ? Icon(Icons.check, color: Theme.of(context).primaryColor)
-                            : null,
-                        onTap: () {
-                          setState(() {
-                            _selectedCategoryId = category.id;
-                            _currentTitle = '${category.name}归档';
-                          });
-                          Navigator.pop(context);
-                        },
-                      );
-                    }),
-                  ],
+                child: Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: textColor,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+              // 选中标记
+              if (isSelected)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(
+                    Icons.check,
+                    size: 20,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                ),
+              // 笔记数量 - Apple 风格
+              Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: secondaryTextColor,
                 ),
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -264,35 +403,26 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
   }
 
   Future<void> _deleteNote(BuildContext context, Note note) async {
-    final confirmed = await ConfirmDialog.show(
-      context: context,
-      title: '删除笔记',
-      content: '确定要删除 "${note.title}" 吗？此操作不可恢复。',
-      actionType: ConfirmActionType.delete,
-    );
-
-    if (confirmed == true) {
-      try {
-        await DB.instance.delete(note.id!);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('已删除笔记: ${note.title}'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-        _loadData();
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('删除失败: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+    try {
+      await DB.instance.delete(note.id!);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('已删除笔记: ${note.title}'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      _loadData();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('删除失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -322,36 +452,24 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
     }
   }
 
+  /// 构建列表视图左滑显示的操作按钮
   List<Widget> _buildListActions(BuildContext context, Note note) {
     return [
       // 恢复按钮
       GestureDetector(
         onTap: () => _restoreNote(context, note),
         child: Container(
-          width: 80,
-          height: double.infinity,
-          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+          width: 48,
+          height: 48,
+          margin: const EdgeInsets.only(right: 8),
           decoration: BoxDecoration(
             color: Colors.green,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(24),
           ),
-          child: const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.unarchive,
-                color: Colors.white,
-                size: 24,
-              ),
-              SizedBox(height: 4),
-              Text(
-                '恢复',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                ),
-              ),
-            ],
+          child: const Icon(
+            Icons.unarchive,
+            color: Colors.white,
+            size: 24,
           ),
         ),
       ),
@@ -359,30 +477,16 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
       GestureDetector(
         onTap: () => _deleteNote(context, note),
         child: Container(
-          width: 80,
-          height: double.infinity,
-          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
             color: Colors.red,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(24),
           ),
-          child: const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.delete_outline,
-                color: Colors.white,
-                size: 24,
-              ),
-              SizedBox(height: 4),
-              Text(
-                '删除',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                ),
-              ),
-            ],
+          child: const Icon(
+            Icons.delete_outline,
+            color: Colors.white,
+            size: 24,
           ),
         ),
       ),
@@ -563,6 +667,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                     children: [
                       // 标题和下拉
                       GestureDetector(
+                        key: _categoryButtonKey,
                         onTap: () => _showCategoryMenu(context),
                         child: MouseRegion(
                           cursor: SystemMouseCursors.click,
@@ -802,8 +907,10 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                     editPageRoute(note, readOnly: true),
                   ).then((_) => _loadData());
                 },
-                onBuildActions: (context) => _buildListActions(context, note),
                 onSwipeRight: () => _unarchiveNote(context, note),
+                onDelete: () => _deleteNote(context, note),
+                rightSwipeIcon: Icons.unarchive,
+                rightSwipeLabel: '恢复',
                 tintColor: Colors.orange,
               ),
             );
@@ -837,8 +944,10 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                     editPageRoute(note, readOnly: true),
                   ).then((_) => _loadData());
                 },
-                onBuildActions: (context) => _buildListActions(context, note),
                 onSwipeRight: () => _unarchiveNote(context, note),
+                onDelete: () => _deleteNote(context, note),
+                rightSwipeIcon: Icons.unarchive,
+                rightSwipeLabel: '恢复',
                 tintColor: Colors.orange,
               ),
             );

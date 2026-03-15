@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:io' show Platform;
 import '../../services/webdav_config_service.dart';
+import '../../utils/permission_manager.dart';
 
 /// WebDAV 配置弹窗
 class WebDAVConfigDialog extends StatefulWidget {
@@ -48,6 +50,15 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
 
   /// 测试连接
   Future<void> _testConnection() async {
+    // Android 平台先申请权限
+    if (Platform.isAndroid) {
+      final hasPermission = await PermissionManager.requestStoragePermission(context);
+      if (!hasPermission) {
+        setState(() => _testResult = '需要存储权限才能同步');
+        return;
+      }
+    }
+
     final config = WebDAVConfig(
       url: _urlController.text.trim(),
       username: _usernameController.text.trim(),

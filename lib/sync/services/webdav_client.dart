@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:webdav_client/webdav_client.dart' as webdav;
 import '../models/remote_file.dart';
@@ -62,15 +63,15 @@ class WebdavClient extends SyncClientBase {
 
   /// 规范化路径，确保格式正确
   String _normalizePath(String path, {bool isDir = false}) {
-    // 确保路径以 / 开头
-    String normalized = path.startsWith('/') ? path : '/$path';
-    // 移除多余的双斜杠
+    // 1. 将 Windows 反斜杠转换为正斜杠
+    String normalized = path.replaceAll('\\', '/');
+    // 2. 移除多余的双斜杠
     normalized = normalized.replaceAll(RegExp(r'/+'), '/');
-    // 如果是目录，确保以 / 结尾
+    // 3. 如果是目录，确保以 / 结尾
     if (isDir && !normalized.endsWith('/')) {
       normalized = '$normalized/';
     }
-    // 对路径进行 URL 编码，处理中文字符等特殊字符
+    // 4. 对路径进行 URL 编码，处理中文字符等特殊字符
     // 使用 encodeFull 而不是 encodeComponent，保留 / 作为分隔符
     return Uri.encodeFull(normalized);
   }
@@ -217,18 +218,22 @@ class WebdavClient extends SyncClientBase {
       onProgress(0, total);
     }
     
-    // 使用 Dio 直接上传，设置正确的 content-type
+    // 使用 Dio 直接上传，设置正确的 content-type 和认证
     try {
       final dio = (_client as dynamic).c as Dio;
       final url = '$_url$normalizedRemotePath';
       
-      await dio.put(
+      // 生成 Basic Auth 认证头
+      final auth = base64Encode(utf8.encode('$_username:$_password'));
+
+      var response = await dio.put(
         url,
         data: Stream.fromIterable([bytes]),
         options: Options(
           contentType: 'application/octet-stream',
           headers: {
             'Content-Length': total.toString(),
+            'Authorization': 'Basic $auth',
           },
         ),
         onSendProgress: (sent, total) {
@@ -237,7 +242,9 @@ class WebdavClient extends SyncClientBase {
           }
         },
       );
+      print('上传响应: ${response}');
     } catch (e) {
+      print('上传错误: $e');
       throw Exception('Upload failed: $e');
     }
     
@@ -277,5 +284,9 @@ class WebdavClient extends SyncClientBase {
       await mkdirAll(path);
     }
     return readDir(path);
+  }
+
+  String _safeEncodePath(String path) {
+    return Uri.encodeComponent(path).replaceAll('%2F', '/');
   }
 }

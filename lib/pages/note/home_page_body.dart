@@ -91,6 +91,32 @@ class _HomePageBodyState extends State<HomePageBody> {
   }
 
   static Future<void> _deleteNote(BuildContext context, Note note) async {
+    try {
+      await DB.instance.delete(note.id!);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('已删除笔记: ${note.title}'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('删除失败: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  /// 显示确认对话框后删除（用于按钮点击）
+  static Future<void> _deleteNoteWithConfirm(BuildContext context, Note note) async {
     final confirmed = await ConfirmDialog.show(
       context: context,
       title: '删除笔记',
@@ -99,28 +125,7 @@ class _HomePageBodyState extends State<HomePageBody> {
     );
 
     if (confirmed == true) {
-      try {
-        await DB.instance.delete(note.id!);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('已删除笔记: ${note.title}'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('删除失败: $e'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
+      await _deleteNote(context, note);
     }
   }
 
@@ -313,23 +318,40 @@ class _HomePageBodyState extends State<HomePageBody> {
     _lastNotes = List.from(notes);
 
     if (notes.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      return RefreshIndicator(
+        onRefresh: widget.onRefresh,
+        color: Theme.of(context).primaryColor,
+        backgroundColor: Theme.of(context).cardColor,
+        strokeWidth: 3,
+        displacement: 60,
+        edgeOffset: 10,
+        triggerMode: RefreshIndicatorTriggerMode.onEdge,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            const Icon(Icons.note_add, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text('暂无笔记', style: TextStyle(fontSize: 18)),
-            const SizedBox(height: 8),
-            Text(
-              '点击右上角 + 按钮创建新笔记',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: widget.onRefresh,
-              icon: const Icon(Icons.refresh),
-              label: const Text('刷新'),
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.6,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.note_add, size: 64, color: Colors.grey),
+                    const SizedBox(height: 16),
+                    const Text('暂无笔记', style: TextStyle(fontSize: 18)),
+                    const SizedBox(height: 8),
+                    Text(
+                      '点击右上角 + 按钮创建新笔记',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: widget.onRefresh,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('刷新'),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -343,6 +365,7 @@ class _HomePageBodyState extends State<HomePageBody> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             mainAxisSpacing: 2,
             crossAxisSpacing: 2,
+            physics: const AlwaysScrollableScrollPhysics(),
             itemCount: notes.length,
             itemBuilder: (_, index) {
               final note = notes[index];
@@ -392,18 +415,19 @@ class _HomePageBodyState extends State<HomePageBody> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               mainAxisSpacing: 2,
               crossAxisSpacing: 16,
-              itemCount: notes.length,
-              itemBuilder: (_, index) {
-                final note = notes[index];
-                return AnimatedListWrapper(
-                  key: ValueKey('grid_list_${note.id}_${widget.refreshCount}'),
-                  index: index,
-                  config: ListAnimationConfig(
-                    type: ListAnimationType.scale,
-                    duration: Duration(milliseconds: 400),
-                    delay: Duration(milliseconds: 80),
-                  ),
-                  child: NoteListItem(
+            physics: const AlwaysScrollableScrollPhysics(),
+            itemCount: notes.length,
+            itemBuilder: (_, index) {
+              final note = notes[index];
+              return AnimatedListWrapper(
+                key: ValueKey('grid_list_${note.id}_${widget.refreshCount}'),
+                index: index,
+                config: ListAnimationConfig(
+                  type: ListAnimationType.scale,
+                  duration: Duration(milliseconds: 400),
+                  delay: Duration(milliseconds: 80),
+                ),
+                child: NoteListItem(
                     note: note,
                     category: _getCategoryForNote(note),
                     onTap: () {
@@ -415,8 +439,8 @@ class _HomePageBodyState extends State<HomePageBody> {
                         }
                       });
                     },
-                    onBuildActions: (context) => _buildListActions(context, note, widget.onRefresh),
                     onSwipeRight: () => _archiveNote(context, note).then((_) => widget.onRefresh()),
+                    onDelete: () => _deleteNote(context, note).then((_) => widget.onRefresh()),
                     tintColor: Colors.blue,
                   ),
                 );
@@ -427,6 +451,7 @@ class _HomePageBodyState extends State<HomePageBody> {
             content = ListView.builder(
               itemCount: notes.length,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              physics: const AlwaysScrollableScrollPhysics(),
               itemBuilder: (_, index) {
                 final note = notes[index];
                 return AnimatedListWrapper(
@@ -449,8 +474,8 @@ class _HomePageBodyState extends State<HomePageBody> {
                         }
                       });
                     },
-                    onBuildActions: (context) => _buildListActions(context, note, widget.onRefresh),
                     onSwipeRight: () => _archiveNote(context, note).then((_) => widget.onRefresh()),
+                    onDelete: () => _deleteNote(context, note).then((_) => widget.onRefresh()),
                     tintColor: Colors.blue,
                   ),
                 );

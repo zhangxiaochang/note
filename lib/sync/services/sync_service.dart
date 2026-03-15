@@ -51,8 +51,6 @@ class SyncService {
       await _client.ping();
       print('Sync: 连接成功');
 
-      // 3. 创建远程目录结构
-      await _createRemoteDirs();
 
       // 4. 确定同步方向
       final finalDirection = await _determineSyncDirection(direction);
@@ -68,9 +66,6 @@ class SyncService {
       if (!dbResult.isSuccess) {
         return dbResult;
       }
-
-      // 6. 同步文件（书籍、封面等）
-      await _syncFiles();
 
       print('Sync: 同步完成');
       return SyncResult.success('同步成功完成');
@@ -237,6 +232,8 @@ class SyncService {
 
     switch (direction) {
       case SyncDirection.upload:
+      // 3. 创建远程目录结构
+        await _createRemoteDirs();
         return DatabaseSyncManager.safeUploadDatabase(
           client: _client,
           localDbPath: localDbPath,
