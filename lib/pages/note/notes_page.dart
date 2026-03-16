@@ -75,6 +75,7 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
   }
 
   Future<void> _loadData() async {
+    debugPrint('_loadData 被调用');
     setState(() => _isLoading = true);
     final categories = await DB.instance.queryAllCategories();
     final total = await DB.instance.getTotalActiveNoteCount();

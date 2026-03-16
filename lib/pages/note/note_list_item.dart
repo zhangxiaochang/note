@@ -139,12 +139,12 @@ class NoteListItemState extends State<NoteListItem>
     final cardColor = isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // 计算右滑进度（0-1）
+    // 计算右滑进度（0-1），触发阈值 50%，最大滑动 70%
     final archiveProgress =
-        _offset > 0 ? (_offset / (screenWidth * 0.6)).clamp(0.0, 1.0) : 0.0;
-    // 计算左滑进度（0-1）
+        _offset > 0 ? (_offset / (screenWidth * 0.5)).clamp(0.0, 1.0) : 0.0;
+    // 计算左滑进度（0-1），触发阈值 50%，最大滑动 70%
     final deleteProgress =
-        _offset < 0 ? (-_offset / (screenWidth * 0.8)).clamp(0.0, 1.0) : 0.0;
+        _offset < 0 ? (-_offset / (screenWidth * 0.5)).clamp(0.0, 1.0) : 0.0;
 
     // 如果正在删除，使用动画包装
     Widget content = Stack(
@@ -155,7 +155,7 @@ class NoteListItemState extends State<NoteListItem>
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
               decoration: BoxDecoration(
-                color: ThemeProvider.secondaryColor,
+                color: widget.tintColor ?? ThemeProvider.secondaryColor,
                 borderRadius: BorderRadius.circular(16),
               ),
               alignment: Alignment.centerLeft,
@@ -343,35 +343,34 @@ class NoteListItemState extends State<NoteListItem>
             double resistance = 1.0;
             if (_offset > 0 && delta > 0) {
               // 右滑时增加阻力
-              resistance = 1.0 - (_offset / (screenWidth * 0.8)) * 0.4;
+              resistance = 1.0 - (_offset / (screenWidth * 0.7)) * 0.4;
               resistance = resistance.clamp(0.6, 1.0);
             } else if (_offset < 0 && delta < 0) {
               // 左滑时增加阻力
-              resistance = 1.0 - (-_offset / (screenWidth * 0.8)) * 0.4;
+              resistance = 1.0 - (-_offset / (screenWidth * 0.7)) * 0.4;
               resistance = resistance.clamp(0.6, 1.0);
             }
             final newOffset =
-                (_offset + delta * resistance).clamp(-screenWidth * 0.8, screenWidth * 0.8);
+                (_offset + delta * resistance).clamp(-screenWidth * 0.7, screenWidth * 0.7);
 
             setState(() {
               _offset = newOffset;
             });
           },
           onHorizontalDragEnd: (details) {
-            final deleteThreshold = -screenWidth * 0.7;
-            debugPrint('onHorizontalDragEnd: _offset=$_offset, threshold=$deleteThreshold, screenWidth=$screenWidth');
+            final deleteThreshold = -screenWidth * 0.5;
+            final archiveThreshold = screenWidth * 0.5;
+            debugPrint('onHorizontalDragEnd: _offset=$_offset, deleteThreshold=$deleteThreshold, archiveThreshold=$archiveThreshold');
             final velocity = details.primaryVelocity ?? 0;
 
-            // 如果左滑超过阈值（屏幕宽度的70%），触发删除
+            // 如果左滑超过阈值（屏幕宽度的50%），触发删除
             if (_offset <= deleteThreshold) {
               debugPrint('左滑超过阈值，触发删除');
               _handleSwipeLeft();
               return;
             }
 
-            // 如果右滑超过阈值（屏幕宽度的60%），触发归档
-            final archiveThreshold = screenWidth * 0.6;
-            debugPrint('右滑检查: _offset=$_offset, threshold=$archiveThreshold');
+            // 如果右滑超过阈值（屏幕宽度的50%），触发归档
             if (_offset > archiveThreshold) {
               debugPrint('右滑超过阈值，触发归档');
               _handleSwipeRight();

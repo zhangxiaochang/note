@@ -317,55 +317,48 @@ class _HomePageBodyState extends State<HomePageBody> {
     _shouldAnimate = _shouldPlayAnimation(notes);
     _lastNotes = List.from(notes);
 
-    if (notes.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: widget.onRefresh,
-        color: Theme.of(context).primaryColor,
-        backgroundColor: Theme.of(context).cardColor,
-        strokeWidth: 3,
-        displacement: 60,
-        edgeOffset: 10,
-        triggerMode: RefreshIndicatorTriggerMode.onEdge,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            SizedBox(
-              height: MediaQuery.of(context).size.height * 0.6,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.note_add, size: 64, color: Colors.grey),
-                    const SizedBox(height: 16),
-                    const Text('暂无笔记', style: TextStyle(fontSize: 18)),
-                    const SizedBox(height: 8),
-                    Text(
-                      '点击右上角 + 按钮创建新笔记',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: widget.onRefresh,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('刷新'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
+    // 如果正在加载，显示加载指示器
+    if (widget.isLoading) {
+      return const Center(child: CircularProgressIndicator());
     }
 
-        Widget content;
-        if (widget.isCardView) {
-          content = MasonryGridView.count(
+    Widget content;
+
+    if (notes.isEmpty) {
+      content = ListView(
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.note_add, size: 64, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  const Text('暂无笔记', style: TextStyle(fontSize: 18)),
+                  const SizedBox(height: 8),
+                  Text(
+                    '点击右上角 + 按钮创建新笔记',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: widget.onRefresh,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('刷新'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    } else if (widget.isCardView) {
+      content = MasonryGridView.count(
             crossAxisCount: _crossAxisCount(context),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             mainAxisSpacing: 2,
             crossAxisSpacing: 2,
-            physics: const AlwaysScrollableScrollPhysics(),
             itemCount: notes.length,
             itemBuilder: (_, index) {
               final note = notes[index];
@@ -415,8 +408,7 @@ class _HomePageBodyState extends State<HomePageBody> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               mainAxisSpacing: 2,
               crossAxisSpacing: 16,
-            physics: const AlwaysScrollableScrollPhysics(),
-            itemCount: notes.length,
+              itemCount: notes.length,
             itemBuilder: (_, index) {
               final note = notes[index];
               return AnimatedListWrapper(
@@ -451,7 +443,6 @@ class _HomePageBodyState extends State<HomePageBody> {
             content = ListView.builder(
               itemCount: notes.length,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              physics: const AlwaysScrollableScrollPhysics(),
               itemBuilder: (_, index) {
                 final note = notes[index];
                 return AnimatedListWrapper(

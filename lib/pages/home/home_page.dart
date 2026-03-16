@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
 import '../../services/theme_provider.dart';
 import '../archive/archive_page.dart';
@@ -29,7 +30,16 @@ class _HomePageState extends State<HomePage> {
     // 延迟一下，等页面完全加载
     await Future.delayed(const Duration(milliseconds: 500));
     if (mounted) {
-      await PermissionManager.requestAllPermissions(context);
+      // 检查是否已有权限
+      final hasPermission = await PermissionManager.checkStoragePermission();
+      if (!hasPermission) {
+        // 没有权限，申请权限
+        final granted = await PermissionManager.requestStoragePermission(context);
+        if (!granted) {
+          // 权限被拒绝，退出应用
+          SystemNavigator.pop();
+        }
+      }
     }
   }
 
@@ -39,6 +49,14 @@ class _HomePageState extends State<HomePage> {
     _buildArchivePage(),
     _buildSettingsPage(),
   ];
+
+  late final PageController _pageController = PageController(initialPage: _currentIndex);
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,8 +68,13 @@ class _HomePageState extends State<HomePage> {
           : ThemeProvider.lightBackgroundColor,
 
       // ====== 页面主体 ======
-      body: IndexedStack(
-        index: _currentIndex,
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
         children: pages,
       ),
 
@@ -87,9 +110,23 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // 获取每个 tab 的选中颜色
+  Color _getSelectedColor(int index) {
+    switch (index) {
+      case 0: // 笔记
+        return ThemeProvider.primaryColor; // 黄色
+      case 1: // 归档
+        return Colors.blue;
+      case 2: // 设置
+        return Colors.green;
+      default:
+        return ThemeProvider.primaryColor;
+    }
+  }
+
   Widget _buildNavItem(int index, IconData icon, String label, bool isDark) {
     final isSelected = _currentIndex == index;
-    final selectedColor = ThemeProvider.primaryColor;
+    final selectedColor = _getSelectedColor(index);
     final unselectedColor = isDark
         ? ThemeProvider.darkSecondaryTextColor
         : ThemeProvider.lightSecondaryTextColor;
@@ -101,6 +138,11 @@ class _HomePageState extends State<HomePage> {
           setState(() {
             _currentIndex = index;
           });
+          _pageController.animateToPage(
+            index,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -108,7 +150,7 @@ class _HomePageState extends State<HomePage> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             color: isSelected
-                ? ThemeProvider.primaryColor.withOpacity(0.1)
+                ? selectedColor.withOpacity(0.1)
                 : Colors.transparent,
           ),
           child: AnimatedScale(

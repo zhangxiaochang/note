@@ -3,37 +3,28 @@ import 'package:permission_handler/permission_handler.dart';
 
 /// 权限管理工具类
 class PermissionManager {
-  
+
+  /// 检查是否已有存储权限
+  static Future<bool> checkStoragePermission() async {
+    final status = await Permission.photos.status;
+    return status.isGranted;
+  }
+
   /// 申请存储权限 - 适配 Android 13+
+  /// 直接调用系统权限弹窗，不显示自定义对话框
   static Future<bool> requestStoragePermission(BuildContext context) async {
-    // Android 13+ (API 33+) 使用新的媒体权限
-    final photos = await Permission.photos.request();
+    // 先检查当前权限状态
+    final status = await Permission.photos.status;
     
-    print('媒体权限状态: $photos');
+    print('媒体权限状态: $status');
     
     // 如果已经授权，直接返回
-    if (photos.isGranted) {
+    if (status.isGranted) {
       return true;
     }
     
-    // 如果是首次拒绝或限制，弹出对话框引导用户
-    if (photos.isDenied) {
-      final shouldRequest = await _showPermissionDialog(
-        context,
-        title: '需要存储权限',
-        content: '应用需要访问媒体文件的权限来同步笔记中的图片和附件。请点击"允许"开启权限。',
-      );
-      
-      if (shouldRequest) {
-        // 再次申请权限，这次会弹出系统权限对话框
-        final result = await Permission.photos.request();
-        return result.isGranted;
-      }
-      return false;
-    }
-    
-    // 如果被永久拒绝
-    if (photos.isPermanentlyDenied) {
+    // 如果已经被永久拒绝，显示引导对话框
+    if (status.isPermanentlyDenied) {
       final shouldShow = await _showPermissionDialog(
         context,
         title: '权限被永久拒绝',
@@ -46,7 +37,9 @@ class PermissionManager {
       return false;
     }
     
-    return false;
+    // 首次请求或被拒绝但未永久拒绝，直接调用系统权限弹窗
+    final result = await Permission.photos.request();
+    return result.isGranted;
   }
   
   /// 检查并申请网络权限（Android 不需要运行时申请，但检查网络状态）
