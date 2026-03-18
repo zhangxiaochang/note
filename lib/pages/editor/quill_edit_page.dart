@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:intl/intl.dart';
 import '../../domain/category.dart';
+import '../../widgets/custom_snackbar.dart';
 
 class QuillEditorWidget extends StatefulWidget {
   final List<dynamic>? initialDelta;
@@ -155,9 +156,10 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
 
     widget.onSave?.call(title, content, _selectedCategoryId);
     if (!mounted) return;
-    ScaffoldMessenger.of(
+    CustomSnackBar.showSuccess(
       context,
-    ).showSnackBar(const SnackBar(content: Text('已保存')));
+      message: '笔记已保存',
+    );
   }
 
   final GlobalKey _categoryButtonKey = GlobalKey();
@@ -263,8 +265,9 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
   // 显示分类选择器
   void _showCategoryPicker() async {
     if (widget.categories.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('暂无分类，请先创建分类')),
+      CustomSnackBar.showInfo(
+        context,
+        message: '暂无分类，请先创建分类',
       );
       return;
     }

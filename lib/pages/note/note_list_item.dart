@@ -411,58 +411,46 @@ class NoteListItemState extends State<NoteListItem>
                   hoverColor: isDark
                       ? Colors.white.withOpacity(0.05)
                       : Colors.black.withOpacity(0.03),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // 标题行
-                        Text(
-                          widget.note.title.isEmpty
-                              ? '无标题'
-                              : widget.note.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w500,
-                            color: isDark
-                                ? ThemeProvider.darkTextColor
-                                : ThemeProvider.lightTextColor,
-                          ),
-                        ),
-                        // 底部信息栏：时间 | 内容预览 | 分类标签
-                        const SizedBox(height: 6),
-                        Row(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // 计算可用宽度
+                      final availableWidth = constraints.maxWidth - 32; // 减去左右padding
+                      final hasCategory = widget.category != null;
+                      final hasContent = widget.note.content.isNotEmpty;
+                      
+                      // 根据屏幕宽度决定是否显示内容预览
+                      final showContent = hasContent && availableWidth > 280;
+                      // 小屏幕时隐藏分类标签
+                      final showCategory = hasCategory && availableWidth > 200;
+                      
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            // 时间
+                            // 标题行
                             Text(
-                              _formatDate(widget.note.updatedAt),
+                              widget.note.title.isEmpty
+                                  ? '无标题'
+                                  : widget.note.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w500,
                                 color: isDark
-                                    ? ThemeProvider.darkSecondaryTextColor
-                                    : ThemeProvider.lightSecondaryTextColor,
+                                    ? ThemeProvider.darkTextColor
+                                    : ThemeProvider.lightTextColor,
                               ),
                             ),
-                            // 分隔符和内容预览（如果有内容）
-                            if (widget.note.content.isNotEmpty) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                width: 1,
-                                height: 12,
-                                color: isDark
-                                    ? ThemeProvider.darkSecondaryTextColor.withOpacity(0.3)
-                                    : ThemeProvider.lightSecondaryTextColor.withOpacity(0.3),
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  widget.note.content,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                            // 底部信息栏：时间 | 内容预览 | 分类标签
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                // 时间
+                                Text(
+                                  _formatDate(widget.note.updatedAt),
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w400,
@@ -471,35 +459,63 @@ class NoteListItemState extends State<NoteListItem>
                                         : ThemeProvider.lightSecondaryTextColor,
                                   ),
                                 ),
-                              ),
-                            ] else ...[
-                              const Spacer(),
-                            ],
-                            // 分类标签
-                            if (widget.category != null) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: isDark
-                                      ? ThemeProvider.categoryTagDarkBg
-                                      : ThemeProvider.categoryTagLightBg,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  widget.category!.name,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w500,
-                                    color: widget.category!.color,
+                                // 分隔符和内容预览（如果有内容且空间足够）
+                                if (showContent) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    width: 1,
+                                    height: 12,
+                                    color: isDark
+                                        ? ThemeProvider.darkSecondaryTextColor.withOpacity(0.3)
+                                        : ThemeProvider.lightSecondaryTextColor.withOpacity(0.3),
                                   ),
-                                ),
-                              ),
-                            ],
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      widget.note.content,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w400,
+                                        color: isDark
+                                            ? ThemeProvider.darkSecondaryTextColor
+                                            : ThemeProvider.lightSecondaryTextColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                // 使用 Expanded 占据剩余空间
+                                if (!showContent) const Spacer(),
+                                // 分类标签（空间足够时显示）
+                                if (showCategory) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? ThemeProvider.categoryTagDarkBg
+                                          : ThemeProvider.categoryTagLightBg,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      widget.category!.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w500,
+                                        color: widget.category!.color,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
                 ),
               ),

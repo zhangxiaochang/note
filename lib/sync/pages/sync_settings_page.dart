@@ -3,6 +3,7 @@ import '../models/sync_state.dart';
 import '../providers/sync_provider.dart';
 import '../services/sync_service.dart';
 import '../../services/webdav_config_service.dart';
+import '../../widgets/custom_snackbar.dart';
 
 /// 同步设置页面
 class SyncSettingsPage extends StatefulWidget {
@@ -243,8 +244,9 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
 
   Future<void> _saveSettings() async {
     // TODO: 保存设置到本地存储
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('设置已保存')),
+    CustomSnackBar.showSuccess(
+      context,
+      message: '设置已保存',
     );
   }
 }

@@ -5,6 +5,7 @@ import '../../domain/note.dart';
 import '../../domain/category.dart';
 import '../../utils/confirm_dialog.dart';
 import '../../utils/page_routes.dart';
+import '../../widgets/custom_snackbar.dart';
 import '../../widgets/list_loading_animation.dart';
 import 'dart:math' as math;
 
@@ -94,22 +95,16 @@ class _HomePageBodyState extends State<HomePageBody> {
     try {
       await DB.instance.delete(note.id!);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('已删除笔记: ${note.title}'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
+        CustomSnackBar.showDeleted(
+          context,
+          message: '"${note.title}" 已删除',
         );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('删除失败: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
+        CustomSnackBar.showWarning(
+          context,
+          message: '删除失败: $e',
         );
       }
     }
@@ -133,22 +128,16 @@ class _HomePageBodyState extends State<HomePageBody> {
     try {
       await DB.instance.archiveNote(note.id!, true);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('已归档笔记: ${note.title}'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
+        CustomSnackBar.showArchived(
+          context,
+          message: '"${note.title}" 已归档',
         );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('归档失败: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
+        CustomSnackBar.showWarning(
+          context,
+          message: '归档失败: $e',
         );
       }
     }

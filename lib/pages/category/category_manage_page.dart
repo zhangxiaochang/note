@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../dao/db.dart';
 import '../../domain/category.dart';
+import '../../widgets/custom_snackbar.dart';
 
 class CategoryManagePage extends StatefulWidget {
   const CategoryManagePage({super.key});
@@ -305,8 +306,9 @@ class _CategoryEditDialogState extends State<CategoryEditDialog> {
           onPressed: () {
             final name = _nameController.text.trim();
             if (name.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('请输入分类名称')),
+              CustomSnackBar.showWarning(
+                context,
+                message: '请输入分类名称',
               );
               return;
             }

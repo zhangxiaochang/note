@@ -7,6 +7,7 @@ import '../../domain/category.dart';
 import '../../services/theme_provider.dart';
 import '../../utils/confirm_dialog.dart';
 import '../../utils/page_routes.dart';
+import '../../widgets/custom_snackbar.dart';
 import '../../widgets/list_loading_animation.dart';
 import '../note/note_card.dart';
 import '../note/note_list_item.dart';
@@ -400,28 +401,37 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
   Future<void> _unarchiveNote(BuildContext context, Note note) async {
     await DB.instance.archiveNote(note.id!, false);
     _loadData();
+    
+    // 显示恢复成功提示
+    if (context.mounted) {
+      CustomSnackBar.showRestored(
+        context,
+        message: '"${note.title}" 已恢复到笔记列表',
+        actionLabel: '撤销',
+        onAction: () async {
+          // 重新归档
+          await DB.instance.archiveNote(note.id!, true);
+          _loadData();
+        },
+      );
+    }
   }
 
   Future<void> _deleteNote(BuildContext context, Note note) async {
     try {
       await DB.instance.delete(note.id!);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('已删除笔记: ${note.title}'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
+        CustomSnackBar.showDeleted(
+          context,
+          message: '"${note.title}" 已删除',
         );
       }
       _loadData();
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('删除失败: $e'),
-            backgroundColor: Colors.red,
-          ),
+        CustomSnackBar.showWarning(
+          context,
+          message: '删除失败: $e',
         );
       }
     }
@@ -431,22 +441,17 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
     try {
       await DB.instance.archiveNote(note.id!, false);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('已恢复笔记: ${note.title}'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
+        CustomSnackBar.showRestored(
+          context,
+          message: '"${note.title}" 已恢复',
         );
       }
       _loadData();
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('恢复失败: $e'),
-            backgroundColor: Colors.red,
-          ),
+        CustomSnackBar.showWarning(
+          context,
+          message: '恢复失败: $e',
         );
       }
     }

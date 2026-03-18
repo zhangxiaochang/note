@@ -4,6 +4,7 @@ import '../../dao/db.dart';
 import '../../domain/note.dart';
 import '../../domain/category.dart';
 import '../../utils/page_routes.dart';
+import '../../widgets/custom_snackbar.dart';
 import 'dart:convert';
 
 class EditPage extends StatefulWidget {
@@ -48,8 +49,9 @@ class _EditPageState extends State<EditPage> {
 
   Future<void> _save(String title, List<dynamic> content, int? categoryId) async {
     if (title.isEmpty && content.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('标题和内容不能都为空')),
+      CustomSnackBar.showWarning(
+        context,
+        message: '标题和内容不能都为空',
       );
       return;
     }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:io' show Platform;
 import '../../services/webdav_config_service.dart';
 import '../../utils/permission_manager.dart';
+import '../../widgets/custom_snackbar.dart';
 
 /// WebDAV 配置弹窗
 class WebDAVConfigDialog extends StatefulWidget {
@@ -94,8 +95,9 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
     );
 
     if (!config.isValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请填写完整的配置信息')),
+      CustomSnackBar.showWarning(
+        context,
+        message: '请填写完整的配置信息',
       );
       return;
     }

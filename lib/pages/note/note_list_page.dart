@@ -4,6 +4,7 @@ import '../../dao/db.dart';
 import '../../domain/note.dart';
 import '../../domain/category.dart';
 import '../../utils/page_routes.dart';
+import '../../widgets/custom_snackbar.dart';
 import 'note_card.dart';
 import 'dart:math' as math;
 
@@ -141,6 +142,20 @@ class _NoteListPageState extends State<NoteListPage> {
     if (confirmed == true) {
       await DB.instance.delete(note.id!);
       _reload();
+      
+      // 显示删除成功提示
+      if (context.mounted) {
+        CustomSnackBar.showDeleted(
+          context,
+          message: '"${note.title}" 已删除',
+          actionLabel: '撤销',
+          onAction: () async {
+            // 恢复笔记
+            await DB.instance.insert(note);
+            _reload();
+          },
+        );
+      }
     }
   }
 
@@ -166,6 +181,20 @@ class _NoteListPageState extends State<NoteListPage> {
     if (confirmed == true) {
       await DB.instance.archiveNote(note.id!, true);
       _reload();
+      
+      // 显示归档成功提示
+      if (context.mounted) {
+        CustomSnackBar.showArchived(
+          context,
+          message: '"${note.title}" 已归档',
+          actionLabel: '撤销',
+          onAction: () async {
+            // 恢复笔记
+            await DB.instance.archiveNote(note.id!, false);
+            _reload();
+          },
+        );
+      }
     }
   }
 
