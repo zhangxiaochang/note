@@ -6,40 +6,33 @@ class PermissionManager {
 
   /// 检查是否已有存储权限
   static Future<bool> checkStoragePermission() async {
-    final status = await Permission.photos.status;
-    return status.isGranted;
+    try {
+      final storageStatus = await Permission.storage.status;
+      print('存储权限状态: $storageStatus');
+      return storageStatus.isGranted;
+    } catch (e) {
+      print('检查权限时出错: $e');
+      return true;
+    }
   }
 
   /// 申请存储权限 - 适配 Android 13+
-  /// 直接调用系统权限弹窗，不显示自定义对话框
   static Future<bool> requestStoragePermission(BuildContext context) async {
-    // 先检查当前权限状态
-    final status = await Permission.photos.status;
-    
-    print('媒体权限状态: $status');
-    
-    // 如果已经授权，直接返回
-    if (status.isGranted) {
-      return true;
-    }
-    
-    // 如果已经被永久拒绝，显示引导对话框
-    if (status.isPermanentlyDenied) {
-      final shouldShow = await _showPermissionDialog(
-        context,
-        title: '权限被永久拒绝',
-        content: '存储权限被永久拒绝。请在系统设置中找到本应用，手动开启"文件和媒体"权限。',
-      );
+    try {
+      // 申请 storage 权限
+      final storageResult = await Permission.storage.request();
+      print('Storage 权限申请结果: $storageResult');
       
-      if (shouldShow) {
-        await openAppSettings();
+      if (storageResult.isGranted) {
+        return true;
       }
+      
+      // 如果 storage 被拒绝，返回 false
+      return false;
+    } catch (e) {
+      print('申请权限时出错: $e');
       return false;
     }
-    
-    // 首次请求或被拒绝但未永久拒绝，直接调用系统权限弹窗
-    final result = await Permission.photos.request();
-    return result.isGranted;
   }
   
   /// 检查并申请网络权限（Android 不需要运行时申请，但检查网络状态）

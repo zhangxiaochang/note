@@ -449,7 +449,7 @@ class NoteListItemState extends State<NoteListItem>
                             ),
                             // 分隔符和内容预览（如果有内容）
                             if (widget.note.content.isNotEmpty) ...[
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 6),
                               Container(
                                 width: 1,
                                 height: 12,
@@ -457,7 +457,7 @@ class NoteListItemState extends State<NoteListItem>
                                     ? ThemeProvider.darkSecondaryTextColor.withOpacity(0.3)
                                     : ThemeProvider.lightSecondaryTextColor.withOpacity(0.3),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   widget.note.content,
@@ -476,9 +476,10 @@ class NoteListItemState extends State<NoteListItem>
                               const Spacer(),
                             ],
                             // 分类标签
-                            if (widget.category != null)
+                            if (widget.category != null) ...[
+                              const SizedBox(width: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: isDark
                                       ? ThemeProvider.categoryTagDarkBg
@@ -494,6 +495,7 @@ class NoteListItemState extends State<NoteListItem>
                                   ),
                                 ),
                               ),
+                            ],
                           ],
                         ),
                       ],

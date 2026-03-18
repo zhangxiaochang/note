@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:io' show Platform;
 import '../../services/theme_provider.dart';
 import '../archive/archive_page.dart';
 import '../note/notes_page.dart';
 import '../settings/settings_page.dart';
-import '../../utils/permission_manager.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -17,32 +15,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
   
-  @override
-  void initState() {
-    super.initState();
-    // Android 平台申请权限
-    if (Platform.isAndroid) {
-      _requestPermissions();
-    }
-  }
-  
-  Future<void> _requestPermissions() async {
-    // 延迟一下，等页面完全加载
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) {
-      // 检查是否已有权限
-      final hasPermission = await PermissionManager.checkStoragePermission();
-      if (!hasPermission) {
-        // 没有权限，申请权限
-        final granted = await PermissionManager.requestStoragePermission(context);
-        if (!granted) {
-          // 权限被拒绝，退出应用
-          SystemNavigator.pop();
-        }
-      }
-    }
-  }
-
   // 页面列表
   late final List<Widget> pages = [
     _buildNotesPage(),
@@ -62,47 +34,53 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark 
-          ? ThemeProvider.darkBackgroundColor 
-          : ThemeProvider.lightBackgroundColor,
-
-      // ====== 页面主体 ======
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        children: pages,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: 320,  // 最小宽度
+        minHeight: 480, // 最小高度
       ),
+      child: Scaffold(
+        backgroundColor: isDark 
+            ? ThemeProvider.darkBackgroundColor 
+            : ThemeProvider.lightBackgroundColor,
 
-      // ====== 自定义底部导航栏 ======
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: isDark 
-              ? ThemeProvider.darkCardColor 
-              : ThemeProvider.lightCardColor,
-          border: Border(
-            top: BorderSide(
-              color: isDark 
-                  ? ThemeProvider.darkBorderColor 
-                  : ThemeProvider.lightBorderColor,
-              width: 0.5,
+        // ====== 页面主体 ======
+        body: PageView(
+          controller: _pageController,
+          onPageChanged: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          children: pages,
+        ),
+
+        // ====== 自定义底部导航栏 ======
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: isDark 
+                ? ThemeProvider.darkCardColor 
+                : ThemeProvider.lightCardColor,
+            border: Border(
+              top: BorderSide(
+                color: isDark 
+                    ? ThemeProvider.darkBorderColor 
+                    : ThemeProvider.lightBorderColor,
+                width: 0.5,
+              ),
             ),
           ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(0, Icons.description_outlined, '笔记', isDark),
-                _buildNavItem(1, Icons.archive_outlined, '归档', isDark),
-                _buildNavItem(2, Icons.settings_outlined, '设置', isDark),
-              ],
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildNavItem(0, Icons.description_outlined, '笔记', isDark),
+                  _buildNavItem(1, Icons.archive_outlined, '归档', isDark),
+                  _buildNavItem(2, Icons.settings_outlined, '设置', isDark),
+                ],
+              ),
             ),
           ),
         ),
