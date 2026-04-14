@@ -399,7 +399,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
   }
 
   Future<void> _unarchiveNote(BuildContext context, Note note) async {
-    await DB.instance.archiveNote(note.id!, false);
+    await DB.instance.archiveNote(note.uuid, false);
     _loadData();
     
     // 显示恢复成功提示
@@ -410,7 +410,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
         actionLabel: '撤销',
         onAction: () async {
           // 重新归档
-          await DB.instance.archiveNote(note.id!, true);
+          await DB.instance.archiveNote(note.uuid, true);
           _loadData();
         },
       );
@@ -419,7 +419,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
 
   Future<void> _deleteNote(BuildContext context, Note note) async {
     try {
-      await DB.instance.delete(note.id!);
+      await DB.instance.delete(note.uuid);
       if (context.mounted) {
         CustomSnackBar.showDeleted(
           context,
@@ -439,7 +439,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
 
   Future<void> _restoreNote(BuildContext context, Note note) async {
     try {
-      await DB.instance.archiveNote(note.id!, false);
+      await DB.instance.archiveNote(note.uuid, false);
       if (context.mounted) {
         CustomSnackBar.showRestored(
           context,
@@ -847,7 +847,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
           );
           final cardKey = GlobalKey();
           return AnimatedListWrapper(
-            key: ValueKey('card_${note.id}_$_refreshCount'),
+            key: ValueKey('card_${note.uuid}_$_refreshCount'),
             index: index,
             config: ListAnimationConfig(
               type: ListAnimationType.scale,
@@ -896,7 +896,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
               orElse: () => Category(name: '未分类', colorValue: Colors.grey.value, createdAt: 0),
             );
             return AnimatedListWrapper(
-              key: ValueKey('grid_list_${note.id}_$_refreshCount'),
+              key: ValueKey('grid_list_${note.uuid}_$_refreshCount'),
               index: index,
               config: ListAnimationConfig(
                 type: ListAnimationType.scale,
@@ -933,7 +933,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
               orElse: () => Category(name: '未分类', colorValue: Colors.grey.value, createdAt: 0),
             );
             return AnimatedListWrapper(
-              key: ValueKey('list_${note.id}_$_refreshCount'),
+              key: ValueKey('list_${note.uuid}_$_refreshCount'),
               index: index,
               config: ListAnimationConfig(
                 type: ListAnimationType.slideUp,
@@ -986,7 +986,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
     // 如果笔记列表发生变化，播放动画
     if (_lastNotes.length != currentNotes.length) return true;
     for (int i = 0; i < currentNotes.length; i++) {
-      if (_lastNotes[i].id != currentNotes[i].id) return true;
+      if (_lastNotes[i].uuid != currentNotes[i].uuid) return true;
     }
     return false;
   }

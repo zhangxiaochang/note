@@ -47,7 +47,35 @@ class NoteListItemState extends State<NoteListItem>
 
   bool _isDeleting = false;
 
-  String get heroTag => 'note_list_${widget.note.id ?? 'new'}';
+  String get heroTag => 'note_list_${widget.note.uuid}';
+
+  /// 获取同步状态图标
+  Widget _getSyncStatusIcon() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    switch (widget.note.syncStatus) {
+      case 'synced':
+        return Icon(
+          Icons.check_circle_outline,
+          size: 14,
+          color: isDark ? Colors.green.withOpacity(0.7) : Colors.green,
+        );
+      case 'pending_upload':
+        return Icon(
+          Icons.cloud_upload_outlined,
+          size: 14,
+          color: isDark ? Colors.blue.withOpacity(0.7) : Colors.blue,
+        );
+      case 'pending_download':
+        return Icon(
+          Icons.cloud_download_outlined,
+          size: 14,
+          color: isDark ? Colors.orange.withOpacity(0.7) : Colors.orange,
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
 
   @override
   void initState() {
@@ -390,40 +418,44 @@ class NoteListItemState extends State<NoteListItem>
           },
           child: Transform.translate(
             offset: Offset(_offset, 0),
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.1)
-                      : Colors.black.withOpacity(0.06),
-                  width: 1,
-                ),
-              ),
-              child: Material(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
-                child: InkWell(
-                  onTap: widget.onTap,
-                  borderRadius: BorderRadius.circular(16),
-                  hoverColor: isDark
-                      ? Colors.white.withOpacity(0.05)
-                      : Colors.black.withOpacity(0.03),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      // 计算可用宽度
-                      final availableWidth = constraints.maxWidth - 32; // 减去左右padding
-                      final hasCategory = widget.category != null;
-                      final hasContent = widget.note.content.isNotEmpty;
-                      
-                      // 根据屏幕宽度决定是否显示内容预览
-                      final showContent = hasContent && availableWidth > 280;
-                      // 小屏幕时隐藏分类标签
-                      final showCategory = hasCategory && availableWidth > 200;
-                      
-                      return Container(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // 计算可用宽度
+                final availableWidth = constraints.maxWidth - 32; // 减去左右padding
+                final hasContent = widget.note.content.isNotEmpty;
+                final categoryColor = widget.category?.color;
+                // 如果有分类颜色，使用淡化的分类颜色作为背景，否则使用默认卡片颜色
+                final cardBackgroundColor = categoryColor != null
+                    ? categoryColor.withOpacity(isDark ? 0.15 : 0.08)
+                    : cardColor;
+                
+                // 根据屏幕宽度决定是否显示内容预览
+                final showContent = hasContent && availableWidth > 280;
+                
+                return Container(
+                  margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
+                  decoration: BoxDecoration(
+                    color: cardBackgroundColor,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: categoryColor != null
+                          ? categoryColor.withOpacity(isDark ? 0.3 : 0.2)
+                          : (isDark
+                              ? Colors.white.withOpacity(0.1)
+                              : Colors.black.withOpacity(0.06)),
+                      width: 1,
+                    ),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      onTap: widget.onTap,
+                      borderRadius: BorderRadius.circular(16),
+                      hoverColor: isDark
+                          ? Colors.white.withOpacity(0.05)
+                          : Colors.black.withOpacity(0.03),
+                      child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -444,7 +476,7 @@ class NoteListItemState extends State<NoteListItem>
                                     : ThemeProvider.lightTextColor,
                               ),
                             ),
-                            // 底部信息栏：时间 | 内容预览 | 分类标签
+                            // 底部信息栏：时间 | 同步状态 | 内容预览
                             const SizedBox(height: 6),
                             Row(
                               children: [
@@ -459,6 +491,9 @@ class NoteListItemState extends State<NoteListItem>
                                         : ThemeProvider.lightSecondaryTextColor,
                                   ),
                                 ),
+                                // 同步状态图标
+                                const SizedBox(width: 8),
+                                _getSyncStatusIcon(),
                                 // 分隔符和内容预览（如果有内容且空间足够）
                                 if (showContent) ...[
                                   const SizedBox(width: 6),
@@ -485,40 +520,15 @@ class NoteListItemState extends State<NoteListItem>
                                     ),
                                   ),
                                 ],
-                                // 使用 Expanded 占据剩余空间
-                                if (!showContent) const Spacer(),
-                                // 分类标签（空间足够时显示）
-                                if (showCategory) ...[
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: isDark
-                                          ? ThemeProvider.categoryTagDarkBg
-                                          : ThemeProvider.categoryTagLightBg,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Text(
-                                      widget.category!.name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w500,
-                                        color: widget.category!.color,
-                                      ),
-                                    ),
-                                  ),
-                                ],
                               ],
                             ),
                           ],
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
           ),
         ),

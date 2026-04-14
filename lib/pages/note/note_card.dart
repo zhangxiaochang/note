@@ -30,7 +30,35 @@ class NoteCard extends StatefulWidget {
 class _NoteCardState extends State<NoteCard> {
   final GlobalKey _moreButtonKey = GlobalKey();
 
-  String get heroTag => 'note_card_${widget.note.id ?? 'new'}';
+  String get heroTag => 'note_card_${widget.note.uuid}';
+
+  /// 获取同步状态图标
+  Widget _getSyncStatusIcon() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    switch (widget.note.syncStatus) {
+      case 'synced':
+        return Icon(
+          Icons.check_circle_outline,
+          size: 14,
+          color: isDark ? Colors.green.withOpacity(0.7) : Colors.green,
+        );
+      case 'pending_upload':
+        return Icon(
+          Icons.cloud_upload_outlined,
+          size: 14,
+          color: isDark ? Colors.blue.withOpacity(0.7) : Colors.blue,
+        );
+      case 'pending_download':
+        return Icon(
+          Icons.cloud_download_outlined,
+          size: 14,
+          color: isDark ? Colors.orange.withOpacity(0.7) : Colors.orange,
+        );
+      default:
+        return SizedBox.shrink();
+    }
+  }
 
   void _showMenu(BuildContext context) async {
     if (widget.onBuildMenu == null || widget.onMenuSelected == null) return;
@@ -197,8 +225,12 @@ class _NoteCardState extends State<NoteCard> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor;
+    final defaultCardColor = isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor;
     final categoryColor = widget.category?.color;
+    // 如果有分类颜色，使用淡化的分类颜色作为背景，否则使用默认卡片颜色
+    final cardColor = categoryColor != null
+        ? categoryColor.withOpacity(isDark ? 0.15 : 0.08)
+        : defaultCardColor;
 
     return NoteHero(
       tag: heroTag,
@@ -208,9 +240,11 @@ class _NoteCardState extends State<NoteCard> {
           color: cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.1)
-                : Colors.black.withOpacity(0.06),
+            color: categoryColor != null
+                ? categoryColor.withOpacity(isDark ? 0.3 : 0.2)
+                : (isDark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.06)),
             width: 1,
           ),
         ),
@@ -230,45 +264,18 @@ class _NoteCardState extends State<NoteCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 标题行和分类标签
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.note.title.isEmpty ? '无标题' : widget.note.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w500,
-                            color: isDark
-                                ? ThemeProvider.darkTextColor
-                                : ThemeProvider.lightTextColor,
-                          ),
-                        ),
-                      ),
-                      if (widget.category != null) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? ThemeProvider.categoryTagDarkBg
-                                : ThemeProvider.categoryTagLightBg,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            widget.category!.name,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: widget.category!.color,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
+                  // 标题行
+                  Text(
+                    widget.note.title.isEmpty ? '无标题' : widget.note.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w500,
+                      color: isDark
+                          ? ThemeProvider.darkTextColor
+                          : ThemeProvider.lightTextColor,
+                    ),
                   ),
                   // 内容预览（多行）
                   if (widget.note.content.isNotEmpty) ...[
@@ -292,15 +299,21 @@ class _NoteCardState extends State<NoteCard> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        _formatDate(widget.note.updatedAt),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          color: isDark
-                              ? ThemeProvider.darkSecondaryTextColor
-                              : ThemeProvider.lightSecondaryTextColor,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            _formatDate(widget.note.updatedAt),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                              color: isDark
+                                  ? ThemeProvider.darkSecondaryTextColor
+                                  : ThemeProvider.lightSecondaryTextColor,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _getSyncStatusIcon(),
+                        ],
                       ),
                       // 更多按钮
                       if (widget.onBuildMenu != null && widget.onMenuSelected != null)

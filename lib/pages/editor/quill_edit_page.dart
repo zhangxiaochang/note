@@ -8,6 +8,7 @@ import 'package:path/path.dart' as path;
 import 'package:intl/intl.dart';
 import '../../domain/category.dart';
 import '../../widgets/custom_snackbar.dart';
+import '../../utils/image_path_resolver.dart';
 
 class QuillEditorWidget extends StatefulWidget {
   final List<dynamic>? initialDelta;
@@ -367,15 +368,48 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     if (pickedFile == null) return;
 
-    final appDir = await getApplicationDocumentsDirectory();
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(pickedFile.path)}';
-    final savedImage = File('${appDir.path}/images/$fileName');
-    await savedImage.create(recursive: true);
-    await File(pickedFile.path).copy(savedImage.path);
+    try {
+      // 生成图片文件名（使用 UUID 占位符，实际会在保存时替换）
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(pickedFile.path)}';
+      print('InsertImage: 文件名 $fileName');
+      
+      // 确保图片目录存在
+      await ImagePathResolver.ensureImageDir();
+      
+      // 保存图片到本地
+      final imageDir = await ImagePathResolver.getImageDir();
+      print('InsertImage: 图片目录 $imageDir');
+      
+      final savedImage = File('$imageDir/$fileName');
+      print('InsertImage: 保存路径 ${savedImage.path}');
+      
+      // 检查源文件是否存在
+      final sourceFile = File(pickedFile.path);
+      if (!await sourceFile.exists()) {
+        print('InsertImage: 源文件不存在 ${pickedFile.path}');
+        return;
+      }
+      
+      await sourceFile.copy(savedImage.path);
+      print('InsertImage: 图片保存成功');
+      
+      // 验证文件是否保存成功
+      if (!await savedImage.exists()) {
+        print('InsertImage: 保存后文件不存在');
+        return;
+      }
+      
+      // 使用相对路径（存储和编辑器都用相对路径，显示时由 ImageEmbedBuilder 解析）
+      final relativePath = 'images/$fileName';
+      print('InsertImage: 使用相对路径 $relativePath');
 
-    final index = _controller.selection.baseOffset;
-    final length = _controller.selection.extentOffset - index;
-    _controller.replaceText(index, length, BlockEmbed.image(savedImage.path), null);
+      final index = _controller.selection.baseOffset;
+      final length = _controller.selection.extentOffset - index;
+      _controller.replaceText(index, length, BlockEmbed.image(relativePath), null);
+      print('InsertImage: 图片插入编辑器成功');
+    } catch (e) {
+      print('InsertImage: 插入图片失败 $e');
+    }
   }
 
   void _showFontSizeMenu(BuildContext context, Offset offset, Size size) {
@@ -697,7 +731,11 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
                   expands: true,
                   scrollable: true,
                   padding: const EdgeInsets.fromLTRB(17, 12, 17, 100),
-                  embedBuilders: [...FlutterQuillEmbeds.editorBuilders()],
+                  embedBuilders: [
+                    ...FlutterQuillEmbeds.editorBuilders(),
+                    // 自定义图片嵌入构建器，处理相对路径
+                    ImageEmbedBuilder(),
+                  ],
                   customStyles: DefaultStyles(
                     h1: DefaultTextBlockStyle(
                       TextStyle(
@@ -836,6 +874,60 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// 自定义图片嵌入构建器，处理相对路径
+class ImageEmbedBuilder extends EmbedBuilder {
+  @override
+  String get key => 'image';
+
+  @override
+  Widget build(BuildContext context, EmbedContext embedContext) {
+    final imageUrl = embedContext.node.value.data;
+    if (imageUrl == null) return const SizedBox();
+
+    return FutureBuilder<String>(
+      future: ImagePathResolver.resolveImagePath(imageUrl),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox();
+        }
+
+        final resolvedPath = snapshot.data!;
+        final file = File(resolvedPath);
+        
+        // 检查文件是否存在
+        if (!file.existsSync()) {
+          print('ImageEmbedBuilder: 图片文件不存在 $resolvedPath');
+          return Container(
+            width: MediaQuery.of(context).size.width - 32,
+            height: 100,
+            color: Colors.grey[300],
+            child: const Center(
+              child: Icon(Icons.broken_image, color: Colors.grey),
+            ),
+          );
+        }
+
+        return Image.file(
+          file,
+          fit: BoxFit.contain,
+          width: MediaQuery.of(context).size.width - 32,
+          errorBuilder: (context, error, stackTrace) {
+            print('ImageEmbedBuilder: 加载图片失败 $resolvedPath: $error');
+            return Container(
+              width: MediaQuery.of(context).size.width - 32,
+              height: 100,
+              color: Colors.grey[300],
+              child: const Center(
+                child: Icon(Icons.broken_image, color: Colors.grey),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -55,6 +55,7 @@ dependencies:
   dio: ^5.4.3+1
   freezed_annotation: ^2.4.1
   permission_handler: ^11.3.1  # 权限申请
+  uuid: ^4.4.0  # UUID 生成
 dev_dependencies:
   flutter_test:
     sdk: flutter

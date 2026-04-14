@@ -4,7 +4,10 @@ import '../../dao/db.dart';
 import '../../domain/note.dart';
 import '../../domain/category.dart';
 import '../../services/theme_provider.dart';
+import '../../services/webdav_config_service.dart';
 import '../../utils/page_routes.dart';
+import '../../sync/services/incremental_sync.dart';
+import '../../sync/services/webdav_client.dart';
 import '../category/category_manage_page.dart';
 import 'home_page_body.dart';
 
@@ -72,6 +75,73 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
     setState(() {
       _searchQuery = query.toLowerCase();
     });
+  }
+
+  /// 同步笔记
+  Future<void> _syncNotes() async {
+    try {
+      // 显示加载对话框
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // 从配置中加载 WebDAV 设置
+      final config = await WebDAVConfigService.loadConfig();
+      if (!config.isValid) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('请先配置 WebDAV 同步设置'),
+            duration: Duration(seconds: 3),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // 创建 WebDAV 客户端
+      final client = WebdavClient(
+        url: config.url,
+        username: config.username,
+        password: config.password,
+      );
+
+      // 创建增量同步服务
+      final syncService = IncrementalSync(client);
+
+      // 执行同步
+      final result = await syncService.sync();
+
+      // 关闭加载对话框
+      Navigator.pop(context);
+
+      // 显示同步结果
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.message),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      // 重新加载数据
+      await _loadData();
+    } catch (e) {
+      // 关闭加载对话框
+      Navigator.pop(context);
+
+      // 显示错误信息
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('同步失败: $e'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _loadData() async {
@@ -1023,6 +1093,39 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
                                   size: 18,
                                   color: isDark 
                                       ? ThemeProvider.darkTextColor 
+                                      : ThemeProvider.lightTextColor,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          // 同步按钮
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _syncNotes,
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? ThemeProvider.darkCardColor
+                                      : ThemeProvider.lightCardColor,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  Icons.cloud_sync,
+                                  size: 18,
+                                  color: isDark
+                                      ? ThemeProvider.darkTextColor
                                       : ThemeProvider.lightTextColor,
                                 ),
                               ),

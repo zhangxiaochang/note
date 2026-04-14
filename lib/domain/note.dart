@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 class Note {
-  int? id;
+  final String uuid;
   final String title;
   final String content;
   final List<dynamic>? deltaContent; // 👈 富文本 Delta JSON
@@ -9,9 +9,12 @@ class Note {
   final int updatedAt;
   final bool archived;
   final int? categoryId; // 👈 分类ID，可为空表示未分类
+  final String syncStatus; // 同步状态: 'synced' | 'pending_upload' | 'pending_download'
+  final bool isDeleted; // 👈 删除标记：true 表示已删除
+  final int? deletedAt; // 👈 删除时间戳，用于冲突判断
 
   Note({
-    this.id,
+    required this.uuid,
     required this.title,
     required this.content,
     required this.deltaContent,
@@ -19,11 +22,14 @@ class Note {
     required this.updatedAt,
     this.archived = false,
     this.categoryId,
+    this.syncStatus = 'pending_upload',
+    this.isDeleted = false,
+    this.deletedAt,
   });
 
   // ✅ 修复：包含 deltaContent、archived 和 categoryId
   Map<String, dynamic> toMap() => {
-    'id': id,
+    'uuid': uuid,
     'title': title,
     'content': content,
     'deltaContent': deltaContent, // 👈 必须添加！
@@ -31,6 +37,9 @@ class Note {
     'updatedAt': updatedAt,
     'archived': archived ? 1 : 0,
     'categoryId': categoryId,
+    'syncStatus': syncStatus,
+    'isDeleted': isDeleted ? 1 : 0,
+    'deletedAt': deletedAt,
   };
 
   factory Note.fromMap(Map<String, dynamic> map) {
@@ -75,8 +84,35 @@ class Note {
       }
     }
 
+    // 处理 syncStatus 字段
+    String status = 'pending_upload';
+    final rawSyncStatus = map['syncStatus'];
+    if (rawSyncStatus != null && rawSyncStatus is String) {
+      status = rawSyncStatus;
+    }
+
+    // 处理 isDeleted 字段
+    bool isDeleted = false;
+    final rawIsDeleted = map['isDeleted'];
+    if (rawIsDeleted != null) {
+      if (rawIsDeleted is int) {
+        isDeleted = rawIsDeleted == 1;
+      } else if (rawIsDeleted is bool) {
+        isDeleted = rawIsDeleted;
+      }
+    }
+
+    // 处理 deletedAt 字段
+    int? deletedAt;
+    final rawDeletedAt = map['deletedAt'];
+    if (rawDeletedAt != null) {
+      if (rawDeletedAt is int) {
+        deletedAt = rawDeletedAt;
+      }
+    }
+
     return Note(
-      id: map['id'] as int?,
+      uuid: (map['uuid'] as String?) ?? '',
       title: (map['title'] as String?) ?? '',
       content: (map['content'] as String?) ?? '', // 如果 content 是纯文本摘要，保留
       deltaContent: delta, // ✅ 确保是 List<dynamic>
@@ -84,6 +120,9 @@ class Note {
       updatedAt: (map['updatedAt'] as int?) ?? DateTime.now().millisecondsSinceEpoch,
       archived: isArchived,
       categoryId: catId,
+      syncStatus: status,
+      isDeleted: isDeleted,
+      deletedAt: deletedAt,
     );
   }
   static const emptyDelta = [{'insert': '\n'}];
@@ -92,6 +131,7 @@ class Note {
   // 用于 JSON 文件导出（deltaContent 保持为 List）
   Map<String, dynamic> toJsonMap() {
     return {
+      'uuid': uuid,
       'title': title,
       'content': content,
       'deltaContent': deltaContent ?? emptyDelta,
@@ -99,13 +139,16 @@ class Note {
       'updatedAt': updatedAt,
       'archived': archived,
       'categoryId': categoryId,
+      'syncStatus': syncStatus,
+      'isDeleted': isDeleted,
+      'deletedAt': deletedAt,
     };
   }
 
 // 用于数据库存储（deltaContent 转为 String）
   Map<String, dynamic> toDbMap() {
     return {
-      'id': id,
+      'uuid': uuid,
       'title': title,
       'content': content,
       'deltaContent': jsonEncode(deltaContent ?? emptyDelta), // 👈 转字符串
@@ -113,11 +156,14 @@ class Note {
       'updatedAt': updatedAt,
       'archived': archived ? 1 : 0,
       'categoryId': categoryId,
+      'syncStatus': syncStatus,
+      'isDeleted': isDeleted ? 1 : 0,
+      'deletedAt': deletedAt,
     };
   }
 
   Note copyWith({
-    int? id,
+    String? uuid,
     String? title,
     String? content,
     List<dynamic>? deltaContent,
@@ -125,9 +171,12 @@ class Note {
     int? updatedAt,
     bool? archived,
     int? categoryId,
+    String? syncStatus,
+    bool? isDeleted,
+    int? deletedAt,
   }) {
     return Note(
-      id: id ?? this.id,
+      uuid: uuid ?? this.uuid,
       title: title ?? this.title,
       content: content ?? this.content,
       deltaContent: deltaContent ?? this.deltaContent,
@@ -135,6 +184,9 @@ class Note {
       updatedAt: updatedAt ?? this.updatedAt,
       archived: archived ?? this.archived,
       categoryId: categoryId ?? this.categoryId,
+      syncStatus: syncStatus ?? this.syncStatus,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 }

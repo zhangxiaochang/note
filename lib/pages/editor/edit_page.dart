@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:project/pages/editor/quill_edit_page.dart';
+import 'package:uuid/uuid.dart';
 import '../../dao/db.dart';
 import '../../domain/note.dart';
 import '../../domain/category.dart';
 import '../../utils/page_routes.dart';
+import '../../utils/image_path_resolver.dart';
 import '../../widgets/custom_snackbar.dart';
 import 'dart:convert';
 
@@ -61,12 +63,14 @@ class _EditPageState extends State<EditPage> {
     if (widget.note == null) {
       // ======== 新增 ========
       await db.insert('notes', {
+        'uuid': const Uuid().v4(),
         'title': title,
         'content': plainText,
         'deltaContent': jsonEncode(content),
         'createdAt': DateTime.now().millisecondsSinceEpoch,
         'updatedAt': DateTime.now().millisecondsSinceEpoch,
         'categoryId': categoryId,
+        'syncStatus': 'pending_upload',
       });
     } else {
       // ======== 更新 ========
@@ -78,12 +82,63 @@ class _EditPageState extends State<EditPage> {
           'deltaContent': jsonEncode(content),
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
           'categoryId': categoryId,
+          'syncStatus': 'pending_upload',
         },
-        where: 'id = ?',
-        whereArgs: [widget.note!.id],
+        where: 'uuid = ?',
+        whereArgs: [widget.note!.uuid],
       );
     }
     if (mounted) Navigator.of(context).pop(true);
+  }
+
+  /// 将 Delta 中的图片绝对路径转换为相对路径
+  Future<List<dynamic>> _convertImagePathsToRelative(List<dynamic> content) async {
+    final result = <dynamic>[];
+    for (final op in content) {
+      if (op is Map && op.containsKey('insert')) {
+        final insert = op['insert'];
+        if (insert is Map && insert.containsKey('image')) {
+          final imagePath = insert['image'] as String;
+          // 转换为相对路径
+          final relativePath = await ImagePathResolver.toRelativePath(imagePath);
+          result.add({
+            'insert': {'image': relativePath}
+          });
+        } else {
+          result.add(op);
+        }
+      } else {
+        result.add(op);
+      }
+    }
+    return result;
+  }
+
+  /// 将 Delta 中的图片相对路径转换为绝对路径（异步版本）
+  Future<List<dynamic>> _convertImagePathsToAbsoluteAsync(List<dynamic> content) async {
+    final result = <dynamic>[];
+    for (final op in content) {
+      if (op is Map && op.containsKey('insert')) {
+        final insert = op['insert'];
+        if (insert is Map && insert.containsKey('image')) {
+          final imagePath = insert['image'] as String;
+          // 如果是相对路径，转换为绝对路径
+          if (ImagePathResolver.isRelativePath(imagePath)) {
+            final absolutePath = await ImagePathResolver.toAbsolutePath(imagePath);
+            result.add({
+              'insert': {'image': absolutePath}
+            });
+          } else {
+            result.add(op);
+          }
+        } else {
+          result.add(op);
+        }
+      } else {
+        result.add(op);
+      }
+    }
+    return result;
   }
 
   @override

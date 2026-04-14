@@ -103,7 +103,7 @@ class WebdavClient extends SyncClientBase {
 
   @override
   Future<void> testFullCapabilities() async {
-    const testDir = 'sync_demo/.test';
+    const testDir = 'benny/.test';
     const testFile = '$testDir/test.txt';
 
     try {
@@ -288,5 +288,38 @@ class WebdavClient extends SyncClientBase {
 
   String _safeEncodePath(String path) {
     return Uri.encodeComponent(path).replaceAll('%2F', '/');
+  }
+
+  @override
+  Future<String> downloadString(String path) async {
+    final normalizedPath = _normalizePath(path);
+    final bytes = await _requireClient.read(normalizedPath);
+    return utf8.decode(bytes);
+  }
+
+  @override
+  Future<void> uploadString(String content, String path) async {
+    final normalizedPath = _normalizePath(path);
+    final bytes = utf8.encode(content);
+    
+    try {
+      final dio = (_client as dynamic).c as Dio;
+      final url = '$_url$normalizedPath';
+      final auth = base64Encode(utf8.encode('$_username:$_password'));
+
+      await dio.put(
+        url,
+        data: Stream.fromIterable([bytes]),
+        options: Options(
+          contentType: 'application/json',
+          headers: {
+            'Content-Length': bytes.length.toString(),
+            'Authorization': 'Basic $auth',
+          },
+        ),
+      );
+    } catch (e) {
+      throw Exception('Upload string failed: $e');
+    }
   }
 }

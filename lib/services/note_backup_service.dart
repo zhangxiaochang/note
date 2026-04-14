@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
 import '../dao/db.dart';
 import '../domain/note.dart';
 
@@ -35,6 +36,7 @@ class NoteBackupService {
 
       try {
         final note = Note(
+          uuid: item['uuid'] as String? ?? const Uuid().v4(),
           title: item['title'] as String? ?? '',
           content: item['content'] as String? ?? '',
           deltaContent: item['deltaContent'] is List
@@ -47,6 +49,7 @@ class NoteBackupService {
               (item['updatedAt'] as int?) ??
               DateTime.now().millisecondsSinceEpoch,
           archived: item['archived'] as bool? ?? false,
+          syncStatus: item['syncStatus'] as String? ?? 'synced',
         );
 
         await db.insert(

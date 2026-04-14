@@ -80,8 +80,8 @@ class SyncService {
 
   /// 创建远程目录结构
   Future<void> _createRemoteDirs() async {
-    await _client.mkdirAll('sync_demo/data/files');
-    await _client.mkdirAll('sync_demo/data/covers');
+    await _client.mkdirAll('benny/data/files');
+    await _client.mkdirAll('benny/data/covers');
     print('Sync: 远程目录结构创建完成');
   }
 
@@ -90,7 +90,7 @@ class SyncService {
     SyncDirection requestedDirection,
   ) async {
     final localDbPath = await _getLocalDbPath();
-    final remoteDbPath = 'sync_demo/data/$_dbName';
+    final remoteDbPath = 'benny/data/$_dbName';
 
     // 获取远程数据库信息
     final remoteFile = await _client.readProps(remoteDbPath);
@@ -228,7 +228,7 @@ class SyncService {
   /// 同步数据库
   Future<SyncResult> _syncDatabase(SyncDirection direction) async {
     final localDbPath = await _getLocalDbPath();
-    final remoteDbPath = 'sync_demo/data/$_dbName';
+    final remoteDbPath = 'benny/data/$_dbName';
 
     switch (direction) {
       case SyncDirection.upload:
@@ -269,7 +269,7 @@ class SyncService {
     print('Sync: 开始同步文件');
 
     // 获取本地文件列表
-    final localFilesDir = Directory('${Directory.systemTemp.path}/sync_demo_files');
+    final localFilesDir = Directory('${Directory.systemTemp.path}/benny_files');
     if (!await localFilesDir.exists()) {
       await localFilesDir.create(recursive: true);
     }
@@ -277,7 +277,7 @@ class SyncService {
     final localFiles = await localFilesDir.list().toList();
 
     // 获取远程文件列表
-    final remoteFiles = await _client.safeReadDir('sync_demo/data/files');
+    final remoteFiles = await _client.safeReadDir('benny/data/files');
     final remoteFileNames = remoteFiles.map((f) => f.name).toSet();
 
     // 上传本地有但远程没有的文件
@@ -287,7 +287,7 @@ class SyncService {
         print('Sync: 上传文件 $fileName');
         await _client.uploadFile(
           file.path,
-          'sync_demo/data/files/$fileName',
+          'benny/data/files/$fileName',
         );
       }
     }
@@ -301,7 +301,7 @@ class SyncService {
       if (!await localFile.exists()) {
         print('Sync: 下载文件 $fileName');
         await _client.downloadFile(
-          'sync_demo/data/files/$fileName',
+          'benny/data/files/$fileName',
           localPath,
         );
       }

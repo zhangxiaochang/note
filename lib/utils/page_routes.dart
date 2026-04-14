@@ -15,7 +15,7 @@ Route<bool> editPageRoute(
       return EditPage(
         note: note,
         readOnly: readOnly,
-        heroTag: heroTag ?? 'note_${note?.id ?? 'new'}',
+        heroTag: heroTag ?? 'note_${note?.uuid ?? 'new'}',
       );
     },
   );

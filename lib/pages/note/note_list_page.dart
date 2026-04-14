@@ -140,7 +140,7 @@ class _NoteListPageState extends State<NoteListPage> {
     );
 
     if (confirmed == true) {
-      await DB.instance.delete(note.id!);
+      await DB.instance.delete(note.uuid);
       _reload();
       
       // 显示删除成功提示
@@ -179,7 +179,7 @@ class _NoteListPageState extends State<NoteListPage> {
     );
 
     if (confirmed == true) {
-      await DB.instance.archiveNote(note.id!, true);
+      await DB.instance.archiveNote(note.uuid, true);
       _reload();
       
       // 显示归档成功提示
@@ -190,7 +190,7 @@ class _NoteListPageState extends State<NoteListPage> {
           actionLabel: '撤销',
           onAction: () async {
             // 恢复笔记
-            await DB.instance.archiveNote(note.id!, false);
+            await DB.instance.archiveNote(note.uuid, false);
             _reload();
           },
         );

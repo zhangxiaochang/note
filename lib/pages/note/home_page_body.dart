@@ -71,7 +71,7 @@ class _HomePageBodyState extends State<HomePageBody> {
     // 如果笔记列表发生变化，播放动画
     if (_lastNotes.length != currentNotes.length) return true;
     for (int i = 0; i < currentNotes.length; i++) {
-      if (_lastNotes[i].id != currentNotes[i].id) return true;
+      if (_lastNotes[i].uuid != currentNotes[i].uuid) return true;
     }
     return false;
   }
@@ -93,7 +93,7 @@ class _HomePageBodyState extends State<HomePageBody> {
 
   static Future<void> _deleteNote(BuildContext context, Note note) async {
     try {
-      await DB.instance.delete(note.id!);
+      await DB.instance.delete(note.uuid);
       if (context.mounted) {
         CustomSnackBar.showDeleted(
           context,
@@ -126,7 +126,7 @@ class _HomePageBodyState extends State<HomePageBody> {
 
   static Future<void> _archiveNote(BuildContext context, Note note) async {
     try {
-      await DB.instance.archiveNote(note.id!, true);
+      await DB.instance.archiveNote(note.uuid, true);
       if (context.mounted) {
         CustomSnackBar.showArchived(
           context,
@@ -353,7 +353,7 @@ class _HomePageBodyState extends State<HomePageBody> {
               final note = notes[index];
               final cardKey = GlobalKey();
               return AnimatedListWrapper(
-                key: ValueKey('card_${note.id}_${widget.refreshCount}'),
+                key: ValueKey('card_${note.uuid}_${widget.refreshCount}'),
                 index: index,
                 config: ListAnimationConfig(
                   type: ListAnimationType.scale,
@@ -401,7 +401,7 @@ class _HomePageBodyState extends State<HomePageBody> {
             itemBuilder: (_, index) {
               final note = notes[index];
               return AnimatedListWrapper(
-                key: ValueKey('grid_list_${note.id}_${widget.refreshCount}'),
+                key: ValueKey('grid_list_${note.uuid}_${widget.refreshCount}'),
                 index: index,
                 config: ListAnimationConfig(
                   type: ListAnimationType.scale,
@@ -435,7 +435,7 @@ class _HomePageBodyState extends State<HomePageBody> {
               itemBuilder: (_, index) {
                 final note = notes[index];
                 return AnimatedListWrapper(
-                  key: ValueKey('list_${note.id}_${widget.refreshCount}'),
+                  key: ValueKey('list_${note.uuid}_${widget.refreshCount}'),
                   index: index,
                   config: ListAnimationConfig(
                     type: ListAnimationType.slideUp,

@@ -49,6 +49,12 @@ abstract class SyncClientBase {
   /// 读取文件属性
   Future<RemoteFile?> readProps(String path);
 
+  /// 下载字符串内容
+  Future<String> downloadString(String path);
+
+  /// 上传字符串内容
+  Future<void> uploadString(String content, String path);
+
   /// 协议名称
   String get protocolName;
 
