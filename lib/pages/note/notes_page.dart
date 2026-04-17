@@ -6,9 +6,9 @@ import '../../domain/category.dart';
 import '../../services/theme_provider.dart';
 import '../../services/webdav_config_service.dart';
 import '../../utils/page_routes.dart';
-import '../../sync/services/incremental_sync.dart';
 import '../../sync/services/webdav_client.dart';
 import '../category/category_manage_page.dart';
+import '../sync/sync_progress_page.dart';
 import 'home_page_body.dart';
 
 class NotePages extends StatefulWidget {
@@ -77,70 +77,33 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
     });
   }
 
-  /// 同步笔记
+  /// 打开云端同步页（默认不自动同步，用户在页内点击「开始同步」）
   Future<void> _syncNotes() async {
-    try {
-      // 显示加载对话框
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-
-      // 从配置中加载 WebDAV 设置
-      final config = await WebDAVConfigService.loadConfig();
-      if (!config.isValid) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('请先配置 WebDAV 同步设置'),
-            duration: Duration(seconds: 3),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
-      }
-
-      // 创建 WebDAV 客户端
-      final client = WebdavClient(
-        url: config.url,
-        username: config.username,
-        password: config.password,
-      );
-
-      // 创建增量同步服务
-      final syncService = IncrementalSync(client);
-
-      // 执行同步
-      final result = await syncService.sync();
-
-      // 关闭加载对话框
-      Navigator.pop(context);
-
-      // 显示同步结果
+    // 检查 WebDAV 配置
+    final config = await WebDAVConfigService.loadConfig();
+    if (!config.isValid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.message),
-          duration: const Duration(seconds: 3),
+        const SnackBar(
+          content: Text('请先配置 WebDAV 同步设置'),
+          duration: Duration(seconds: 3),
+          backgroundColor: Colors.orange,
         ),
       );
+      return;
+    }
 
-      // 重新加载数据
+    // 打开同步进度页面
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SyncProgressPage(),
+        fullscreenDialog: true,
+      ),
+    );
+
+    // 若完成了一次同步流程并点「完成」返回，刷新列表
+    if (result == true) {
       await _loadData();
-    } catch (e) {
-      // 关闭加载对话框
-      Navigator.pop(context);
-
-      // 显示错误信息
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('同步失败: $e'),
-          duration: const Duration(seconds: 3),
-          backgroundColor: Colors.red,
-        ),
-      );
     }
   }
 
@@ -1028,44 +991,57 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
                       ),
                     ],
                   )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // 标题和下拉
-                      GestureDetector(
-                        key: _categoryButtonKey,
-                        onTap: () => _showCategoryMenu(context, buttonKey: _categoryButtonKey),
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: Row(
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isCompactHeader = constraints.maxWidth < 315;
+                      final actionButtonSize = isCompactHeader ? 34.0 : 40.0;
+                      final actionIconSize = isCompactHeader ? 16.0 : 18.0;
+                      final actionGap = isCompactHeader ? 6.0 : 10.0;
+                      final titleFontSize = isCompactHeader ? 22.0 : 24.0;
+                      return Row(
+                        children: [
+                          // 标题和下拉（可收缩，避免窄宽度下与右侧按钮组挤爆）
+                          Expanded(
+                            child: GestureDetector(
+                              key: _categoryButtonKey,
+                              onTap: () => _showCategoryMenu(context, buttonKey: _categoryButtonKey),
+                              child: MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        _currentTitle,
+                                        style: TextStyle(
+                                          fontSize: titleFontSize,
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark
+                                              ? ThemeProvider.darkTextColor
+                                              : ThemeProvider.lightTextColor,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.keyboard_arrow_down,
+                                      size: isCompactHeader ? 18 : 20,
+                                      color: isDark
+                                          ? ThemeProvider.darkSecondaryTextColor
+                                          : ThemeProvider.lightSecondaryTextColor,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: isCompactHeader ? 6 : 8),
+                          // 右侧按钮组（窄屏时自动缩小并隐藏同步按钮）
+                          Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                _currentTitle,
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark 
-                                      ? ThemeProvider.darkTextColor 
-                                      : ThemeProvider.lightTextColor,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.keyboard_arrow_down,
-                                size: 20,
-                                color: isDark 
-                                    ? ThemeProvider.darkSecondaryTextColor 
-                                    : ThemeProvider.lightSecondaryTextColor,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      // 右侧按钮组
-                      Row(
-                        children: [
                           // 搜索按钮
                           Material(
                             color: Colors.transparent,
@@ -1073,8 +1049,8 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
                               onTap: _startSearch,
                               borderRadius: BorderRadius.circular(12),
                               child: Container(
-                                width: 40,
-                                height: 40,
+                                width: actionButtonSize,
+                                height: actionButtonSize,
                                 decoration: BoxDecoration(
                                   color: isDark 
                                       ? ThemeProvider.darkCardColor 
@@ -1090,7 +1066,7 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
                                 ),
                                 child: Icon(
                                   Icons.search,
-                                  size: 18,
+                                  size: actionIconSize,
                                   color: isDark 
                                       ? ThemeProvider.darkTextColor 
                                       : ThemeProvider.lightTextColor,
@@ -1098,40 +1074,41 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
                               ),
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          if (!isCompactHeader) SizedBox(width: actionGap),
                           // 同步按钮
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: _syncNotes,
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: isDark
-                                      ? ThemeProvider.darkCardColor
-                                      : ThemeProvider.lightCardColor,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  Icons.cloud_sync,
-                                  size: 18,
-                                  color: isDark
-                                      ? ThemeProvider.darkTextColor
-                                      : ThemeProvider.lightTextColor,
+                          if (!isCompactHeader)
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _syncNotes,
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  width: actionButtonSize,
+                                  height: actionButtonSize,
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? ThemeProvider.darkCardColor
+                                        : ThemeProvider.lightCardColor,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    Icons.cloud_sync,
+                                    size: actionIconSize,
+                                    color: isDark
+                                        ? ThemeProvider.darkTextColor
+                                        : ThemeProvider.lightTextColor,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
+                          SizedBox(width: actionGap),
                           // 刷新按钮
                           Material(
                             color: Colors.transparent,
@@ -1143,8 +1120,8 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
                               },
                               borderRadius: BorderRadius.circular(12),
                               child: Container(
-                                width: 40,
-                                height: 40,
+                                width: actionButtonSize,
+                                height: actionButtonSize,
                                 decoration: BoxDecoration(
                                   color: isDark
                                       ? ThemeProvider.darkCardColor
@@ -1162,7 +1139,7 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
                                   turns: _refreshController,
                                   child: Icon(
                                     Icons.refresh,
-                                    size: 18,
+                                    size: actionIconSize,
                                     color: isDark
                                         ? ThemeProvider.darkTextColor
                                         : ThemeProvider.lightTextColor,
@@ -1171,9 +1148,11 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
                               ),
                             ),
                           ),
+                            ],
+                          ),
                         ],
-                      ),
-                    ],
+                      );
+                    },
                   ),
           ),
           // 笔记数量

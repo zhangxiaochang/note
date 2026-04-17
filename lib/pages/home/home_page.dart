@@ -14,6 +14,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
+  static const double _minLayoutWidth = 320;
   
   // 页面列表
   late final List<Widget> pages = [
@@ -33,13 +34,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(
-        minWidth: 320,  // 最小宽度
-        minHeight: 480, // 最小高度
-      ),
-      child: Scaffold(
+    final scaffold = Scaffold(
         backgroundColor: isDark 
             ? ThemeProvider.darkBackgroundColor 
             : ThemeProvider.lightBackgroundColor,
@@ -84,7 +79,22 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-      ),
+      );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= _minLayoutWidth) {
+          return scaffold;
+        }
+        // 小于最小宽度时，维持 320 的布局宽度，避免导航/标题被硬挤爆
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: _minLayoutWidth,
+            child: scaffold,
+          ),
+        );
+      },
     );
   }
 

@@ -7,6 +7,7 @@ import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:sqflite/sqflite.dart';
 import 'services/theme_provider.dart';
+import 'widgets/app_scroll_behavior.dart';
 
 // 👇 新增：平台判断导入
 import 'dart:io' show Platform;
@@ -52,6 +53,7 @@ class App extends StatelessWidget {
     return MaterialApp(
       title: '笔记',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: const AppScrollBehavior(),
       themeMode: themeProvider.flutterThemeMode,
       theme: themeProvider.theme,
       home: const HomePage(),
