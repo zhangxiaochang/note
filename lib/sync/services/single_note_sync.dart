@@ -189,10 +189,13 @@ class SingleNoteSync {
   /// 下载笔记
   Future<SyncResult> _downloadNote(Note remoteNote) async {
     try {
-      // 保存到本地数据库
+      // 1. 下载笔记中的图片
+      await _downloadNoteImages(remoteNote);
+      
+      // 2. 保存到本地数据库
       await DB.instance.update(remoteNote.toDbMap(), where: 'uuid = ?', whereArgs: [remoteNote.uuid]);
       
-      // 更新同步状态
+      // 3. 更新同步状态
       await _updateSyncStatus(remoteNote.uuid, 'synced');
       
       print('Sync: 笔记下载成功 ${remoteNote.uuid}');
@@ -200,6 +203,46 @@ class SingleNoteSync {
     } catch (e) {
       print('Sync: 笔记下载失败: $e');
       return SyncResult.failure('下载失败: $e', SyncFailureType.unknown);
+    }
+  }
+
+  /// 下载笔记中的图片
+  Future<void> _downloadNoteImages(Note note) async {
+    final images = _extractImagesFromDelta(note.deltaContent);
+    
+    for (final imagePath in images) {
+      await _downloadImage(imagePath);
+    }
+  }
+
+  /// 下载单张图片
+  Future<void> _downloadImage(String relativePath) async {
+    try {
+      // 获取本地绝对路径
+      final absolutePath = await ImagePathResolver.toAbsolutePath(relativePath);
+      final localFile = File(absolutePath);
+      
+      // 如果本地已存在，跳过下载
+      if (await localFile.exists()) {
+        print('Sync: 图片已存在，跳过下载 $relativePath');
+        return;
+      }
+      
+      // 确保本地目录存在
+      final localDir = path.dirname(absolutePath);
+      await Directory(localDir).create(recursive: true);
+      
+      // 构建远程路径
+      final fileName = path.basename(relativePath);
+      final remotePath = 'benny/images/$fileName';
+      
+      // 下载图片
+      print('Sync: 下载图片 $remotePath -> $absolutePath');
+      await _client.downloadFile(remotePath, absolutePath);
+      print('Sync: 图片下载成功 $relativePath');
+    } catch (e) {
+      print('Sync: 图片下载失败 $relativePath: $e');
+      // 图片下载失败不影响笔记同步
     }
   }
 
@@ -236,12 +279,12 @@ class SingleNoteSync {
         return;
       }
       
-      // 构建远程路径
-      final remotePath = 'benny/notes/images/$relativePath';
+      // 构建远程路径（图片直接放在 benny/images/ 下，不再嵌套 notes/images）
+      final fileName = path.basename(relativePath);
+      final remotePath = 'benny/images/$fileName';
       
       // 确保远程目录存在
-      final dirPath = path.dirname(remotePath);
-      await _client.mkdirAll(dirPath);
+      await _client.mkdirAll('benny/images');
       
       // 上传图片
       await _client.uploadFile(absolutePath, remotePath);

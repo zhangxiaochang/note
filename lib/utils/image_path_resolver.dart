@@ -1,84 +1,155 @@
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
+
 import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 
-/// 图片路径解析器
 class ImagePathResolver {
-  /// 获取应用文档目录
+  static final RegExp _windowsDrivePath = RegExp(r'^[a-zA-Z]:[\\/]');
+
   static Future<Directory> getAppDir() async {
-    return await getApplicationDocumentsDirectory();
+    return getApplicationDocumentsDirectory();
   }
 
-  /// 相对路径转绝对路径
+  static bool isWebUrl(String value) {
+    final uri = Uri.tryParse(value.trim());
+    if (uri == null) return false;
+    return uri.scheme == 'http' || uri.scheme == 'https';
+  }
+
+  static bool isFileUri(String value) {
+    final uri = Uri.tryParse(value.trim());
+    return uri?.scheme == 'file';
+  }
+
+  static bool isLocalAbsolutePath(String value) {
+    final input = value.trim();
+    if (input.isEmpty) return false;
+    if (_windowsDrivePath.hasMatch(input)) return true;
+    if (input.startsWith('\\\\')) return true;
+    return input.startsWith('/');
+  }
+
+  static bool isAbsolutePath(String value) {
+    return isWebUrl(value) || isFileUri(value) || isLocalAbsolutePath(value);
+  }
+
+  static bool isRelativePath(String value) {
+    return !isAbsolutePath(value);
+  }
+
+  static String _normalizeStoredPath(String value) {
+    var normalized = value.trim();
+    if (normalized.isEmpty) return normalized;
+    normalized = normalized.replaceAll('\\', '/');
+    normalized = normalized.replaceAll(RegExp(r'^\./+'), '');
+    normalized = normalized.replaceAll(RegExp(r'/+'), '/');
+    return normalized;
+  }
+
+  static String _decodeIfNeeded(String value) {
+    try {
+      return Uri.decodeFull(value);
+    } catch (_) {
+      return value;
+    }
+  }
+
   static Future<String> toAbsolutePath(String relativePath) async {
-    if (isAbsolutePath(relativePath)) {
-      return relativePath;
+    final source = relativePath.trim();
+    print('toAbsolutePath: 输入="$source"');
+    if (source.isEmpty) return source;
+
+    if (isWebUrl(source)) {
+      print('toAbsolutePath: 网络URL，直接返回');
+      return source;
     }
+    if (isFileUri(source)) {
+      try {
+        final result = Uri.parse(source).toFilePath(windows: Platform.isWindows);
+        print('toAbsolutePath: file URI转路径="$result"');
+        return result;
+      } catch (_) {
+        return source;
+      }
+    }
+    if (isLocalAbsolutePath(source)) {
+      print('toAbsolutePath: 本地绝对路径，直接返回');
+      return _decodeIfNeeded(source);
+    }
+
     final appDir = await getAppDir();
-    return path.join(appDir.path, relativePath);
+    final normalized = _normalizeStoredPath(source);
+    final result = path.normalize(path.join(appDir.path, normalized));
+    print('toAbsolutePath: appDir="${appDir.path}", normalized="$normalized", result="$result"');
+    return result;
   }
 
-  /// 绝对路径转相对路径
   static Future<String> toRelativePath(String absolutePath) async {
-    if (isRelativePath(absolutePath)) {
-      return absolutePath;
-    }
+    final source = absolutePath.trim();
+    if (source.isEmpty) return source;
+    if (isWebUrl(source)) return source;
+
+    final localPath = isFileUri(source)
+        ? (() {
+            try {
+              return Uri.parse(source).toFilePath(windows: Platform.isWindows);
+            } catch (_) {
+              return source;
+            }
+          })()
+        : source;
+    if (!isLocalAbsolutePath(localPath)) return _normalizeStoredPath(localPath);
+
     final appDir = await getAppDir();
-    final relative = path.relative(absolutePath, from: appDir.path);
-    return relative.replaceAll('\\', '/'); // 统一使用正斜杠
+    final relative = path.relative(localPath, from: appDir.path);
+    return _normalizeStoredPath(relative);
   }
 
-  /// 检查是否为绝对路径
-  static bool isAbsolutePath(String path) {
-    // Windows: C:\... 或 D:/...
-    // macOS/Linux: /...
-    return path.contains(':/') || 
-           path.contains(':\\') || 
-           path.startsWith('/') || 
-           path.startsWith('\\');
-  }
-
-  /// 检查是否为相对路径
-  static bool isRelativePath(String path) {
-    return !isAbsolutePath(path);
-  }
-
-  /// 确保图片目录存在
   static Future<void> ensureImageDir() async {
     final appDir = await getAppDir();
-    final imageDir = Directory('${appDir.path}/images');
+    final imageDir = Directory(path.join(appDir.path, 'images'));
     if (!await imageDir.exists()) {
       await imageDir.create(recursive: true);
     }
   }
 
-  /// 获取图片目录
   static Future<String> getImageDir() async {
     await ensureImageDir();
     final appDir = await getAppDir();
-    return '${appDir.path}/images';
+    return path.join(appDir.path, 'images');
   }
 
-  /// 生成图片文件名（包含 UUID 和时间戳）
   static String generateImageFileName(String uuid, String originalName) {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final extension = path.extension(originalName).toLowerCase();
     return '${uuid}_$timestamp$extension';
   }
 
-  /// 解析图片路径（兼容旧的绝对路径和新的相对路径）
   static Future<String> resolveImagePath(String imagePath) async {
-    print('resolveImagePath: 输入路径 $imagePath');
-    print('resolveImagePath: isAbsolutePath = ${isAbsolutePath(imagePath)}');
-    if (isAbsolutePath(imagePath)) {
-      // 旧的绝对路径，直接使用
-      print('resolveImagePath: 使用绝对路径 $imagePath');
-      return imagePath;
-    } else {
-      // 新的相对路径，转换为绝对路径
-      final absolutePath = await toAbsolutePath(imagePath);
-      print('resolveImagePath: 转换为绝对路径 $absolutePath');
-      return absolutePath;
+    final source = imagePath.trim();
+    print('resolveImagePath: 输入="$source"');
+    if (source.isEmpty) return source;
+
+    if (isWebUrl(source)) {
+      print('resolveImagePath: 识别为网络URL');
+      return source;
     }
+    if (isFileUri(source)) {
+      try {
+        final result = Uri.parse(source).toFilePath(windows: Platform.isWindows);
+        print('resolveImagePath: file URI转路径="$result"');
+        return result;
+      } catch (_) {
+        return source;
+      }
+    }
+    if (isLocalAbsolutePath(source)) {
+      print('resolveImagePath: 识别为本地绝对路径');
+      return _decodeIfNeeded(source);
+    }
+
+    final result = await toAbsolutePath(source);
+    print('resolveImagePath: 相对路径转绝对路径="$result"');
+    return result;
   }
 }

@@ -42,6 +42,21 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
 
   // 刷新计数器，用于触发动画
   int _refreshCount = 0;
+
+  /// 列表左滑：同时只保留一行展开
+  String? _swipeOpenExclusiveUuid;
+
+  void _onSwipeExclusiveClaim(String uuid) {
+    if (_swipeOpenExclusiveUuid != uuid) {
+      setState(() => _swipeOpenExclusiveUuid = uuid);
+    }
+  }
+
+  void _onSwipeExclusiveRelease(String uuid) {
+    if (_swipeOpenExclusiveUuid == uuid) {
+      setState(() => _swipeOpenExclusiveUuid = null);
+    }
+  }
   
   // 分类按钮的 GlobalKey，用于定位下拉菜单
   final GlobalKey _categoryButtonKey = GlobalKey();
@@ -904,8 +919,12 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                 delay: Duration(milliseconds: 80),
               ),
               child: NoteListItem(
+                key: ValueKey(note.uuid),
                 note: note,
                 category: note.categoryId == null ? null : category,
+                swipeOpenExclusiveUuid: _swipeOpenExclusiveUuid,
+                onSwipeExclusiveClaim: _onSwipeExclusiveClaim,
+                onSwipeExclusiveRelease: _onSwipeExclusiveRelease,
                 onTap: () {
                   // 归档笔记以只读模式打开，且不能修改分类
                   Navigator.of(context).push(
@@ -941,8 +960,12 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                 delay: Duration(milliseconds: 80),
               ),
               child: NoteListItem(
+                key: ValueKey(note.uuid),
                 note: note,
                 category: note.categoryId == null ? null : category,
+                swipeOpenExclusiveUuid: _swipeOpenExclusiveUuid,
+                onSwipeExclusiveClaim: _onSwipeExclusiveClaim,
+                onSwipeExclusiveRelease: _onSwipeExclusiveRelease,
                 onTap: () {
                   // 归档笔记以只读模式打开，且不能修改分类
                   Navigator.of(context).push(

@@ -1,9 +1,8 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:intl/intl.dart';
 import '../../domain/category.dart';
@@ -380,7 +379,7 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
       final imageDir = await ImagePathResolver.getImageDir();
       print('InsertImage: 图片目录 $imageDir');
       
-      final savedImage = File('$imageDir/$fileName');
+      final savedImage = File(path.join(imageDir, fileName));
       print('InsertImage: 保存路径 ${savedImage.path}');
       
       // 检查源文件是否存在
@@ -732,9 +731,9 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
                   scrollable: true,
                   padding: const EdgeInsets.fromLTRB(17, 12, 17, 100),
                   embedBuilders: [
-                    ...FlutterQuillEmbeds.editorBuilders(),
-                    // 自定义图片嵌入构建器，处理相对路径
+                    // 自定义图片嵌入构建器，处理相对路径（必须放在前面，覆盖默认的）
                     ImageEmbedBuilder(),
+                    ...FlutterQuillEmbeds.editorBuilders(),
                   ],
                   customStyles: DefaultStyles(
                     h1: DefaultTextBlockStyle(
@@ -885,30 +884,37 @@ class ImageEmbedBuilder extends EmbedBuilder {
 
   @override
   Widget build(BuildContext context, EmbedContext embedContext) {
-    final imageUrl = embedContext.node.value.data;
-    if (imageUrl == null) return const SizedBox();
+    final imageUrl = embedContext.node.value.data?.toString().trim();
+    print('ImageEmbedBuilder: imageUrl="$imageUrl"');
+    if (imageUrl == null || imageUrl.isEmpty) return const SizedBox.shrink();
+
+    if (ImagePathResolver.isWebUrl(imageUrl)) {
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.contain,
+        width: MediaQuery.of(context).size.width - 32,
+        errorBuilder: (context, error, stackTrace) {
+          print('ImageEmbedBuilder: network load failed $imageUrl: $error');
+          return _buildBrokenImage(context);
+        },
+      );
+    }
 
     return FutureBuilder<String>(
       future: ImagePathResolver.resolveImagePath(imageUrl),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const SizedBox();
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const SizedBox.shrink();
+        }
+        if (!snapshot.hasData || snapshot.data == null || snapshot.data!.isEmpty) {
+          return _buildBrokenImage(context);
         }
 
         final resolvedPath = snapshot.data!;
         final file = File(resolvedPath);
-        
-        // 检查文件是否存在
         if (!file.existsSync()) {
-          print('ImageEmbedBuilder: 图片文件不存在 $resolvedPath');
-          return Container(
-            width: MediaQuery.of(context).size.width - 32,
-            height: 100,
-            color: Colors.grey[300],
-            child: const Center(
-              child: Icon(Icons.broken_image, color: Colors.grey),
-            ),
-          );
+          print('ImageEmbedBuilder: local file not found $resolvedPath');
+          return _buildBrokenImage(context);
         }
 
         return Image.file(
@@ -916,18 +922,22 @@ class ImageEmbedBuilder extends EmbedBuilder {
           fit: BoxFit.contain,
           width: MediaQuery.of(context).size.width - 32,
           errorBuilder: (context, error, stackTrace) {
-            print('ImageEmbedBuilder: 加载图片失败 $resolvedPath: $error');
-            return Container(
-              width: MediaQuery.of(context).size.width - 32,
-              height: 100,
-              color: Colors.grey[300],
-              child: const Center(
-                child: Icon(Icons.broken_image, color: Colors.grey),
-              ),
-            );
+            print('ImageEmbedBuilder: local load failed $resolvedPath: $error');
+            return _buildBrokenImage(context);
           },
         );
       },
+    );
+  }
+
+  Widget _buildBrokenImage(BuildContext context) {
+    return Container(
+      width: MediaQuery.of(context).size.width - 32,
+      height: 100,
+      color: Colors.grey[300],
+      child: const Center(
+        child: Icon(Icons.broken_image, color: Colors.grey),
+      ),
     );
   }
 }

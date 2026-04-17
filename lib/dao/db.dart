@@ -322,9 +322,14 @@ class DB {
 
   Future<int> archiveNote(String uuid, bool archived) async {
     final db = await instance.db;
+    final now = DateTime.now().millisecondsSinceEpoch;
     return db.update(
       'notes',
-      {'archived': archived ? 1 : 0},
+      {
+        'archived': archived ? 1 : 0,
+        'updatedAt': now,
+        'syncStatus': 'pending_upload',
+      },
       where: 'uuid = ?',
       whereArgs: [uuid],
     );

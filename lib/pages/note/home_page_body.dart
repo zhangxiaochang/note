@@ -45,6 +45,21 @@ class _HomePageBodyState extends State<HomePageBody> {
   // 记录上一次的 refreshCount，用于判断是否需要播放动画
   int _lastRefreshCount = 0;
 
+  /// 列表左滑：同时只保留一行展开
+  String? _swipeOpenExclusiveUuid;
+
+  void _onSwipeExclusiveClaim(String uuid) {
+    if (_swipeOpenExclusiveUuid != uuid) {
+      setState(() => _swipeOpenExclusiveUuid = uuid);
+    }
+  }
+
+  void _onSwipeExclusiveRelease(String uuid) {
+    if (_swipeOpenExclusiveUuid == uuid) {
+      setState(() => _swipeOpenExclusiveUuid = null);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -409,8 +424,12 @@ class _HomePageBodyState extends State<HomePageBody> {
                   delay: Duration(milliseconds: 80),
                 ),
                 child: NoteListItem(
+                    key: ValueKey(note.uuid),
                     note: note,
                     category: _getCategoryForNote(note),
+                    swipeOpenExclusiveUuid: _swipeOpenExclusiveUuid,
+                    onSwipeExclusiveClaim: _onSwipeExclusiveClaim,
+                    onSwipeExclusiveRelease: _onSwipeExclusiveRelease,
                     onTap: () {
                       Navigator.of(context)
                           .push<bool>(editPageRoute(note))
@@ -443,8 +462,12 @@ class _HomePageBodyState extends State<HomePageBody> {
                     delay: Duration(milliseconds: 80),
                   ),
                   child: NoteListItem(
+                    key: ValueKey(note.uuid),
                     note: note,
                     category: _getCategoryForNote(note),
+                    swipeOpenExclusiveUuid: _swipeOpenExclusiveUuid,
+                    onSwipeExclusiveClaim: _onSwipeExclusiveClaim,
+                    onSwipeExclusiveRelease: _onSwipeExclusiveRelease,
                     onTap: () {
                       Navigator.of(context)
                           .push<bool>(editPageRoute(note))
