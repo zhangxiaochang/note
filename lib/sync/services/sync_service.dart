@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/sync_state.dart';
-import 'incremental_sync.dart';
+import 'synchronizer.dart';
 import 'sync_client_base.dart';
 
 /// 同步服务：仅支持按笔记 JSON + 图片的增量同步（整库上传/下载已移除）
@@ -31,12 +31,12 @@ class SyncService {
 
       await _client.ping();
 
-      final incremental = IncrementalSync(_client);
+      final sync = Synchronizer(_client);
       if (_context != null && _context!.mounted) {
-        incremental.setContext(_context!);
+        sync.setContext(_context!);
       }
 
-      return incremental.sync();
+      return sync.run();
     } catch (e) {
       return SyncResult.failure(
         '同步失败: $e',

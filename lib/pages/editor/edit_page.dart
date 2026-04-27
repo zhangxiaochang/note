@@ -58,7 +58,6 @@ class _EditPageState extends State<EditPage> {
       return;
     }
     final plainText = getPlainText(content);
-    final db = await DB.instance.db;
     String? categoryUuid;
     if (categoryId != null) {
       final cat = await DB.instance.queryCategoryById(categoryId);
@@ -66,22 +65,22 @@ class _EditPageState extends State<EditPage> {
     }
 
     if (widget.note == null) {
-      // ======== 新增 ========
-      await db.insert('notes', {
-        'uuid': const Uuid().v4(),
-        'title': title,
-        'content': plainText,
-        'deltaContent': jsonEncode(content),
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-        'updatedAt': DateTime.now().millisecondsSinceEpoch,
-        'categoryId': categoryId,
-        'categoryUuid': categoryUuid,
-        'syncStatus': 'pending_upload',
-      });
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await DB.instance.insert(
+        Note(
+          uuid: const Uuid().v4(),
+          title: title,
+          content: plainText,
+          deltaContent: content,
+          createdAt: now,
+          updatedAt: now,
+          categoryId: categoryId,
+          categoryUuid: categoryUuid,
+          syncStatus: 'pending_upload',
+        ),
+      );
     } else {
-      // ======== 更新 ========
-      await db.update(
-        'notes',
+      await DB.instance.update(
         {
           'title': title,
           'content': plainText,

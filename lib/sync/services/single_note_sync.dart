@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 import '../../domain/note.dart';
 import '../../dao/db.dart';
+import '../../dao/sync_item_dao.dart';
+import '../models/sync_item_vocabulary.dart';
 import '../../utils/quill_image_paths.dart';
 import '../../utils/uuid_generator.dart';
 import '../../utils/image_path_resolver.dart';
@@ -73,18 +75,42 @@ class SingleNoteSync {
     }
   }
 
+  /// 以 [sync_items] 为主；[Note.syncStatus] 与「远端无文件」为辅助
   Future<bool> _needsSync(Note note) async {
+    final row = await SyncItemDao.instance.get(SyncItemType.note, note.uuid);
+    if (row == null) {
+      return _legacyNeedsSync(note);
+    }
+    if (row.syncStatus == SyncItemStatus.dirtyLocal ||
+        row.syncStatus == SyncItemStatus.conflict ||
+        row.syncStatus == SyncItemStatus.pendingRemote) {
+      return true;
+    }
+    if (row.syncStatus == SyncItemStatus.clean) {
+      if (note.syncStatus != 'synced') {
+        return true;
+      }
+      return _remotePropsMissingForUpload(note.uuid);
+    }
+    return _legacyNeedsSync(note);
+  }
+
+  Future<bool> _legacyNeedsSync(Note note) async {
     if (note.syncStatus != 'synced') {
       return true;
     }
+    return _remotePropsMissingForUpload(note.uuid);
+  }
 
-    final remotePath = _getNoteRemotePath(note.uuid);
+  /// 有 [sync_items] 且为 clean 时：仍需确认远端存在（避免只有本地以为已同步）
+  Future<bool> _remotePropsMissingForUpload(String uuid) async {
+    final remotePath = _getNoteRemotePath(uuid);
     final remoteFile = await _client.readProps(remotePath);
     if (remoteFile == null) {
-      print('Sync: 远程文件不存在，需要重新上传 ${note.uuid}');
+      // ignore: avoid_print
+      print('Sync: 远程文件不存在，需要重新上传 $uuid');
       return true;
     }
-
     return false;
   }
 
@@ -284,6 +310,7 @@ class SingleNoteSync {
       'last_sync_at': DateTime.now().millisecondsSinceEpoch,
       'content_hash': noteSyncContentHash(noteForHash),
     });
+    await SyncItemDao.instance.markNoteInSync(noteForHash);
   }
 }
 

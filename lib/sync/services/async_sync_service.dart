@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../models/sync_progress.dart';
 import '../models/sync_state.dart';
-import 'incremental_sync.dart';
+import 'synchronizer.dart';
 import 'single_note_sync.dart';
 import 'sync_client_base.dart';
 import 'sync_ui_prefs.dart';
 
-/// 异步同步：批量增量同步（与 [IncrementalSync] 一致）及单条笔记同步入口
+/// 异步同步：批量 [Synchronizer] 与单条 [SingleNoteSync] 入口
 class AsyncSyncService {
   AsyncSyncService(this._client) {
     _singleNoteSync = SingleNoteSync(_client);
@@ -60,16 +60,16 @@ class AsyncSyncService {
   }
 
   Future<void> _performBatchSync() async {
-    final incremental = IncrementalSync(
+    final sync = Synchronizer(
       _client,
       progress: _progressController,
       isCancelled: () => _isCancelled,
     );
     if (_context != null && _context!.mounted) {
-      incremental.setContext(_context!);
+      sync.setContext(_context!);
     }
 
-    final result = await incremental.sync();
+    final result = await sync.run();
 
     final snap = _progressController.currentProgress;
     if (snap.localNotesCount > 0 || snap.remoteNotesCount > 0 || snap.totalNotes > 0) {

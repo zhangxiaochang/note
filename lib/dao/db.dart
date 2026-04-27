@@ -1,10 +1,13 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'dart:convert';
+
 import '../domain/note.dart';
 import '../domain/category.dart';
+import '../sync/models/sync_item_vocabulary.dart';
+import 'sync_item_dao.dart';
 import '../utils/memo_data_paths.dart';
 import '../utils/uuid_generator.dart';
-import 'dart:convert';
 
 
 class DB {
@@ -25,7 +28,7 @@ class DB {
     // 3. 打开数据库（支持升级）
     return openDatabase(
       dbPath,
-      version: 8, // v8: 分类 uuid / 同步字段，笔记 categoryUuid
+      version: 9, // v9: sync_items（Joplin 式 item 状态，供后续 Synchronizer）
       onCreate: (db, version) async {
         // 创建笔记表（UUID 主键）
         await db.execute('''
@@ -69,6 +72,8 @@ class DB {
             FOREIGN KEY (note_uuid) REFERENCES notes(uuid) ON DELETE CASCADE
           )
         ''');
+        await _createSyncItemsTable(db);
+        await _backfillSyncItems(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         print('Upgrading DB from $oldVersion to $newVersion');
@@ -206,7 +211,81 @@ class DB {
             WHERE categoryId IS NOT NULL
           ''');
         }
+        if (oldVersion < 9) {
+          await _createSyncItemsTable(db);
+          await _backfillSyncItems(db);
+        }
       },
+    );
+  }
+
+  static Future<void> _createSyncItemsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sync_items(
+        item_type TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        sync_target_id INTEGER NOT NULL DEFAULT 0,
+        sync_status TEXT NOT NULL,
+        last_synced_at INTEGER,
+        remote_mtime INTEGER,
+        remote_etag TEXT,
+        content_hash TEXT,
+        last_error TEXT,
+        error_count INTEGER NOT NULL DEFAULT 0,
+        local_updated_at INTEGER,
+        PRIMARY KEY (item_type, item_id, sync_target_id)
+      )
+    ''');
+  }
+
+  /// 从 [notes] + [sync_meta] 回填 [sync_items]；并写入 [category_index] 占位行（见 [SyncItemIds]）
+  static Future<void> _backfillSyncItems(Database db) async {
+    final notes = await db.query('notes');
+    for (final row in notes) {
+      final uuid = row['uuid']! as String;
+      final noteSync = row['syncStatus'] as String? ?? 'pending_upload';
+      final itemStatus = noteSync == 'synced'
+          ? SyncItemStatus.clean
+          : SyncItemStatus.dirtyLocal;
+
+      final meta = await db.query(
+        'sync_meta',
+        where: 'note_uuid = ?',
+        whereArgs: [uuid],
+      );
+      String? hash;
+      int? lastSync;
+      if (meta.isNotEmpty) {
+        hash = meta.first['content_hash'] as String?;
+        lastSync = meta.first['last_sync_at'] as int?;
+      }
+
+      await db.insert(
+        'sync_items',
+        {
+          'item_type': SyncItemType.note,
+          'item_id': uuid,
+          'sync_target_id': 0,
+          'sync_status': itemStatus,
+          'last_synced_at': lastSync,
+          'content_hash': hash,
+          'error_count': 0,
+          'local_updated_at': row['updatedAt'] as int?,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+
+    await db.insert(
+      'sync_items',
+      {
+        'item_type': SyncItemType.categoryIndex,
+        'item_id': SyncItemIds.categoryIndexId,
+        'sync_target_id': 0,
+        'sync_status': SyncItemStatus.dirtyLocal,
+        'error_count': 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
@@ -290,7 +369,20 @@ class DB {
 
   Future<int> insert(Note note) async {
     final db = await instance.db;
-    return db.insert('notes', note.toDbMap());
+    final n = await db.insert('notes', note.toDbMap());
+    await db.insert(
+      'sync_items',
+      {
+        'item_type': SyncItemType.note,
+        'item_id': note.uuid,
+        'sync_target_id': 0,
+        'sync_status': SyncItemStatus.dirtyLocal,
+        'error_count': 0,
+        'local_updated_at': note.updatedAt,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    return n;
   }
 
   Future<List<Note>> queryAll() async {
@@ -365,10 +457,8 @@ class DB {
   }
 
   Future<int> archiveNote(String uuid, bool archived) async {
-    final db = await instance.db;
     final now = DateTime.now().millisecondsSinceEpoch;
-    return db.update(
-      'notes',
+    return instance.update(
       {
         'archived': archived ? 1 : 0,
         'updatedAt': now,
@@ -385,15 +475,43 @@ class DB {
     List<Object?>? whereArgs,
   }) async {
     final db = await instance.db;
-    return db.update('notes', row, where: where, whereArgs: whereArgs);
+    final n = await db.update('notes', row, where: where, whereArgs: whereArgs);
+    if (n > 0 && where == 'uuid = ?' && whereArgs != null && whereArgs.isNotEmpty) {
+      final uuid = whereArgs.first as String;
+      final st = row['syncStatus'] as String?;
+      if (st == 'synced') {
+        // 与远端对齐后的状态；sync_items 由 [markNoteInSync] 等写出
+      } else if (st != null) {
+        await SyncItemDao.instance.markNoteDirty(
+          uuid,
+          localUpdatedAt: row['updatedAt'] as int?,
+        );
+      } else if (row.containsKey('deltaContent') ||
+          row.containsKey('content') ||
+          row.containsKey('title') ||
+          row.containsKey('archived') ||
+          row.containsKey('isDeleted') ||
+          row.containsKey('categoryId') ||
+          row.containsKey('categoryUuid')) {
+        await SyncItemDao.instance.markNoteDirty(
+          uuid,
+          localUpdatedAt: row['updatedAt'] as int?,
+        );
+        await db.update(
+          'notes',
+          {'syncStatus': 'pending_upload'},
+          where: 'uuid = ?',
+          whereArgs: [uuid],
+        );
+      }
+    }
+    return n;
   }
 
   /// 逻辑删除笔记（标记删除，不是物理删除）
   Future<int> delete(String uuid) async {
-    final db = await instance.db;
     final now = DateTime.now().millisecondsSinceEpoch;
-    return await db.update(
-      'notes',
+    return instance.update(
       {
         'isDeleted': 1,
         'deletedAt': now,
@@ -408,15 +526,18 @@ class DB {
   /// 物理删除笔记（仅在回收站中彻底删除时使用）
   Future<int> deletePermanently(String uuid) async {
     final db = await instance.db;
+    await db.delete(
+      'sync_items',
+      where: 'item_type = ? AND item_id = ? AND sync_target_id = ?',
+      whereArgs: [SyncItemType.note, uuid, 0],
+    );
     return await db.delete('notes', where: 'uuid = ?', whereArgs: [uuid]);
   }
 
   /// 恢复已删除的笔记
   Future<int> restoreNote(String uuid) async {
-    final db = await instance.db;
     final now = DateTime.now().millisecondsSinceEpoch;
-    return await db.update(
-      'notes',
+    return instance.update(
       {
         'isDeleted': 0,
         'deletedAt': null,
@@ -442,11 +563,9 @@ class DB {
     return null;
   }
 
-  // 更新笔记同步状态
+  // 更新笔记同步状态（会走 [update] 的 sync_items 维护逻辑）
   Future<int> updateSyncStatus(String uuid, String status) async {
-    final db = await instance.db;
-    return db.update(
-      'notes',
+    return instance.update(
       {'syncStatus': status},
       where: 'uuid = ?',
       whereArgs: [uuid],
@@ -522,15 +641,34 @@ class DB {
     }
   }
 
-  // 获取需要同步的笔记
+  /// 以 [sync_items] 为准：非 `clean` 需同步；无 `sync_items` 行时退回 [Note.syncStatus]
   Future<List<Note>> getNotesToSync() async {
     final db = await instance.db;
-    final maps = await db.query(
-      'notes',
-      where: 'syncStatus != ?',
-      whereArgs: ['synced'],
-    );
-    return maps.map((e) => Note.fromMap(e)).toList();
+    final raw = await db.rawQuery('''
+      SELECT n.* FROM notes n
+      WHERE (n.isDeleted = 0 OR n.isDeleted IS NULL)
+        AND (
+          EXISTS (
+            SELECT 1 FROM sync_items s
+            WHERE s.item_type = ?
+              AND s.item_id = n.uuid
+              AND s.sync_target_id = 0
+              AND s.sync_status != ?
+          )
+          OR (
+            NOT EXISTS (
+              SELECT 1 FROM sync_items s
+              WHERE s.item_type = ? AND s.item_id = n.uuid AND s.sync_target_id = 0
+            ) AND n.syncStatus != 'synced'
+          )
+        )
+      ORDER BY n.createdAt DESC
+    ''', [
+      SyncItemType.note,
+      SyncItemStatus.clean,
+      SyncItemType.note,
+    ]);
+    return raw.map(Note.fromMap).toList();
   }
 
   // ==================== 分类相关操作 ====================
@@ -541,7 +679,7 @@ class DB {
     final uuid = (category.uuid != null && category.uuid!.isNotEmpty)
         ? category.uuid
         : UuidGenerator.generate();
-    return db.insert('categories', {
+    final id = await db.insert('categories', {
       'uuid': uuid,
       'name': category.name,
       'colorValue': category.colorValue,
@@ -549,6 +687,8 @@ class DB {
       'updatedAt': category.updatedAt > 0 ? category.updatedAt : now,
       'isDeleted': category.isDeleted ? 1 : 0,
     });
+    await SyncItemDao.instance.markCategoryIndexDirty();
+    return id;
   }
 
   Future<List<Category>> queryAllCategories() async {
@@ -597,7 +737,7 @@ class DB {
   Future<int> updateCategory(Category category) async {
     final db = await instance.db;
     final now = DateTime.now().millisecondsSinceEpoch;
-    return db.update(
+    final n = await db.update(
       'categories',
       {
         'uuid': category.uuid,
@@ -610,6 +750,10 @@ class DB {
       where: 'id = ?',
       whereArgs: [category.id],
     );
+    if (n > 0) {
+      await SyncItemDao.instance.markCategoryIndexDirty();
+    }
+    return n;
   }
 
   /// 软删除分类（保留 uuid 供同步）
@@ -641,22 +785,35 @@ class DB {
   Future<int> deleteCategory(int id) async {
     final db = await instance.db;
     final now = DateTime.now().millisecondsSinceEpoch;
-    await db.update(
+    final affected = await db.query(
       'notes',
-      {
-        'categoryId': null,
-        'categoryUuid': null,
-        'syncStatus': 'pending_upload',
-      },
+      columns: ['uuid'],
       where: 'categoryId = ?',
       whereArgs: [id],
     );
-    return db.update(
+    for (final row in affected) {
+      final u = row['uuid']! as String;
+      await instance.update(
+        {
+          'categoryId': null,
+          'categoryUuid': null,
+          'syncStatus': 'pending_upload',
+          'updatedAt': now,
+        },
+        where: 'uuid = ?',
+        whereArgs: [u],
+      );
+    }
+    final c = await db.update(
       'categories',
       {'isDeleted': 1, 'updatedAt': now},
       where: 'id = ?',
       whereArgs: [id],
     );
+    if (c > 0) {
+      await SyncItemDao.instance.markCategoryIndexDirty();
+    }
+    return c;
   }
 
   Future<int> getNoteCountByCategory(int categoryId) async {

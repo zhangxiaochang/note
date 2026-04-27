@@ -150,11 +150,12 @@ Joplin 式思路的核心是：**每个可同步对象是一条「item」**，�
 
 ## 8. 分阶段实现大纲（Todo）
 
-- **0. 边界** — 定义 item 范围；确认单 WebDAV 目标；列出非目标  
-- **1. 数据层** — `sync_items` 表、状态机文档、与 `syncStatus` / `sync_meta` 的迁移或双写策略  
-- **2. 远端** — 列目录抽象、远端索引、路径与 `item_key` 映射  
-- **3. 同步机** — `Synchronizer` 单入口；diff 规则；顺序与失败重试；部分成功语义  
-- **4. 旧代码衔接** — 从 `IncrementalSync` / `SingleNoteSync` 收敛；冲突与取消  
+- [x] **0. 边界** — 定义 item 范围；确认单 WebDAV 目标；列出非目标（见 `lib/sync/models/sync_item_vocabulary.dart`）  
+- [x] **1. 数据层** — `sync_items` 表（v9 迁移 + 回填）、`SyncItemDao`；需同步判定与「待同步列表」以 `sync_items` 为主，`notes.syncStatus` / `sync_meta` 与 UI 对齐  
+- [x] **2. 远端** — `RemoteIndex` / `RemoteIndexBuilder`；笔记列表经 Builder；图片/分类元数据在索引中，后续可做基于索引的 diff 优化  
+- [x] **3. 同步机（首版）** — `Synchronizer` 单入口 `run()`；`AsyncSyncService` / `SyncService` 已改用；`sync_planner` 的 `plannedSyncOperationCount`；`sync_items` 在分类成功/失败、单条成功/失败、新笔记拉取、本地删标记后回写；纯 diff 状态机可再收敛为独立 planner 类  
+- [x] **3b. `sync_items` 主判据** — `SingleNoteSync._needsSync`、`Synchronizer._needsPairwiseSync` 以 `sync_items` 为准；`DB.update` / 归档·删除·恢复·`updateSyncStatus`、分类增删改、删分类下笔记 等路径维护 `dirty`；`getNotesToSync`：`sync_status != clean` 或（无行且 `notes.syncStatus != synced`）  
+- **4. 可选收尾** — 列表页等若仅需「是否未同步」可读 `SyncItemDao`；`Synchronizer` 仍用 `queryAll` 做全量对账  
 - **5. 升级与验证** — 老数据回填；回归用例集  
 - **6. 可观测** — 日志与（可选）设置项  
 - **7. 优化** — 并行上载、未变更文件跳过 等
@@ -168,6 +169,9 @@ Joplin 式思路的核心是：**每个可同步对象是一条「item」**，�
 | --- | ---------- | ---------------- |
 | 0.1 | 2026-04-22 | 初稿：基于设计讨论整理      |
 | 0.2 | 2026-04-22 | 恢复：文件曾被意外清空后全文还原 |
+| 0.3 | 2026-04-27 | 落地阶段 0–2：`sync_items`、v9 迁移与回填、`RemoteIndexBuilder`、`test/sync/remote_index_builder_test.dart` |
+| 0.4 | 2026-04-27 | 阶段 3 首版：`Synchronizer`、`sync_planner`、主流程回写 `sync_items`；`IncrementalSync` 薄包装 |
+| 0.5 | 2026-04-27 | `sync_items` 作为需同步/合并的主判据；`DB` 写路径与 `getNotesToSync` 联调 |
 
 
 ---
