@@ -9,6 +9,8 @@ class Note {
   final int updatedAt;
   final bool archived;
   final int? categoryId; // 👈 分类ID，可为空表示未分类
+  /// 与 [categoryId] 对应分类的稳定 ID，用于 WebDAV 同步；本地库可持久化
+  final String? categoryUuid;
   final String syncStatus; // 同步状态: 'synced' | 'pending_upload' | 'pending_download'
   final bool isDeleted; // 👈 删除标记：true 表示已删除
   final int? deletedAt; // 👈 删除时间戳，用于冲突判断
@@ -22,6 +24,7 @@ class Note {
     required this.updatedAt,
     this.archived = false,
     this.categoryId,
+    this.categoryUuid,
     this.syncStatus = 'pending_upload',
     this.isDeleted = false,
     this.deletedAt,
@@ -37,6 +40,7 @@ class Note {
     'updatedAt': updatedAt,
     'archived': archived ? 1 : 0,
     'categoryId': categoryId,
+    'categoryUuid': categoryUuid,
     'syncStatus': syncStatus,
     'isDeleted': isDeleted ? 1 : 0,
     'deletedAt': deletedAt,
@@ -81,7 +85,15 @@ class Note {
     if (rawCategoryId != null) {
       if (rawCategoryId is int) {
         catId = rawCategoryId;
+      } else if (rawCategoryId is num) {
+        catId = rawCategoryId.toInt();
       }
+    }
+
+    String? catUuid;
+    final rawCategoryUuid = map['categoryUuid'];
+    if (rawCategoryUuid is String && rawCategoryUuid.trim().isNotEmpty) {
+      catUuid = rawCategoryUuid.trim();
     }
 
     // 处理 syncStatus 字段
@@ -120,6 +132,7 @@ class Note {
       updatedAt: (map['updatedAt'] as int?) ?? DateTime.now().millisecondsSinceEpoch,
       archived: isArchived,
       categoryId: catId,
+      categoryUuid: catUuid,
       syncStatus: status,
       isDeleted: isDeleted,
       deletedAt: deletedAt,
@@ -139,7 +152,24 @@ class Note {
       'updatedAt': updatedAt,
       'archived': archived,
       'categoryId': categoryId,
+      'categoryUuid': categoryUuid,
       'syncStatus': syncStatus,
+      'isDeleted': isDeleted,
+      'deletedAt': deletedAt,
+    };
+  }
+
+  /// WebDAV 上传用：以 categoryUuid 为准，不传本地自增 categoryId
+  Map<String, dynamic> toSyncWireJsonMap() {
+    return {
+      'uuid': uuid,
+      'title': title,
+      'content': content,
+      'deltaContent': deltaContent ?? emptyDelta,
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
+      'archived': archived,
+      if (categoryUuid != null) 'categoryUuid': categoryUuid,
       'isDeleted': isDeleted,
       'deletedAt': deletedAt,
     };
@@ -156,10 +186,29 @@ class Note {
       'updatedAt': updatedAt,
       'archived': archived ? 1 : 0,
       'categoryId': categoryId,
+      'categoryUuid': categoryUuid,
       'syncStatus': syncStatus,
       'isDeleted': isDeleted ? 1 : 0,
       'deletedAt': deletedAt,
     };
+  }
+
+  /// 同步解析分类时显式设置 [categoryId] / [categoryUuid]（可传 null 清空）
+  Note withCategoryFields({required int? categoryId, required String? categoryUuid}) {
+    return Note(
+      uuid: uuid,
+      title: title,
+      content: content,
+      deltaContent: deltaContent,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      archived: archived,
+      categoryId: categoryId,
+      categoryUuid: categoryUuid,
+      syncStatus: syncStatus,
+      isDeleted: isDeleted,
+      deletedAt: deletedAt,
+    );
   }
 
   Note copyWith({
@@ -171,6 +220,7 @@ class Note {
     int? updatedAt,
     bool? archived,
     int? categoryId,
+    String? categoryUuid,
     String? syncStatus,
     bool? isDeleted,
     int? deletedAt,
@@ -184,6 +234,7 @@ class Note {
       updatedAt: updatedAt ?? this.updatedAt,
       archived: archived ?? this.archived,
       categoryId: categoryId ?? this.categoryId,
+      categoryUuid: categoryUuid ?? this.categoryUuid,
       syncStatus: syncStatus ?? this.syncStatus,
       isDeleted: isDeleted ?? this.isDeleted,
       deletedAt: deletedAt ?? this.deletedAt,

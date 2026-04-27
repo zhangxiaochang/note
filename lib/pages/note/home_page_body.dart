@@ -15,6 +15,8 @@ import 'note_list_item.dart';
 class HomePageBody extends StatefulWidget {
   final Future<List<Note>>? future;
   final List<Note>? notes;
+  /// 当前列表用到的分类（须与父组件笔记数据一起刷新）
+  final List<Category> categories;
   final Future<void> Function() onRefresh;
   final bool isCardView;
   final bool isLoading;
@@ -24,6 +26,7 @@ class HomePageBody extends StatefulWidget {
     super.key,
     this.future,
     this.notes,
+    this.categories = const [],
     required this.onRefresh,
     this.isCardView = true,
     this.isLoading = false,
@@ -35,9 +38,6 @@ class HomePageBody extends StatefulWidget {
 }
 
 class _HomePageBodyState extends State<HomePageBody> {
-  List<Category> _categories = [];
-  Map<int, Category> _categoryMap = {};
-
   // 用于跟踪是否需要播放动画
   bool _shouldAnimate = true;
   List<Note> _lastNotes = [];
@@ -63,7 +63,6 @@ class _HomePageBodyState extends State<HomePageBody> {
   @override
   void initState() {
     super.initState();
-    _loadCategories();
     _lastRefreshCount = widget.refreshCount;
   }
 
@@ -91,19 +90,13 @@ class _HomePageBodyState extends State<HomePageBody> {
     return false;
   }
 
-  Future<void> _loadCategories() async {
-    final categories = await DB.instance.queryAllCategories();
-    if (mounted) {
-      setState(() {
-        _categories = categories;
-        _categoryMap = {for (var c in categories) c.id!: c};
-      });
-    }
-  }
-
   Category? _getCategoryForNote(Note note) {
-    if (note.categoryId == null) return null;
-    return _categoryMap[note.categoryId];
+    final id = note.categoryId;
+    if (id == null) return null;
+    for (final c in widget.categories) {
+      if (c.id == id) return c;
+    }
+    return null;
   }
 
   static Future<void> _deleteNote(BuildContext context, Note note) async {

@@ -1,14 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../../domain/note.dart';
 import '../../dao/db.dart';
+import '../../utils/quill_image_paths.dart';
 import '../../utils/uuid_generator.dart';
 import '../../utils/image_path_resolver.dart';
 import '../models/sync_state.dart';
 import '../utils/conflict_resolver.dart';
+import '../utils/note_sync_hash.dart';
+import '../utils/note_wire_resolve.dart';
 import 'sync_client_base.dart';
 
 /// 单笔记同步服务
@@ -24,41 +26,44 @@ class SingleNoteSync {
     _context = context;
   }
 
-  /// 同步单条笔记
-  Future<SyncResult> syncNote(String noteUuid) async {
+  /// [preloadedRemote] 若已下载可避免重复 GET；[forceSync] 为 true 时跳过「已同步且远程存在则跳过」逻辑（供增量同步在内容指纹不一致时调用）
+  Future<SyncResult> syncNote(
+    String noteUuid, {
+    Note? preloadedRemote,
+    bool forceSync = false,
+  }) async {
     try {
       print('Sync: 开始同步笔记 $noteUuid');
 
-      // 1. 获取本地笔记
       final note = await DB.instance.queryNoteByUuid(noteUuid);
       if (note == null) {
         return SyncResult.failure('笔记不存在', SyncFailureType.unknown);
       }
 
-      // 2. 检查是否需要同步
-      if (!await _needsSync(note)) {
+      if (!forceSync && !await _needsSync(note)) {
         return SyncResult.success('笔记无需同步');
       }
 
-      // 3. 检测冲突
-      final conflict = await _detectConflict(note);
+      final conflict = await _detectConflict(note, preloadedRemote: preloadedRemote);
       if (conflict.exists) {
-        // 处理冲突
         await _handleConflict(conflict.localNote!, conflict.remoteNote!);
+        final fresh = await DB.instance.queryNoteByUuid(noteUuid);
+        if (fresh != null) {
+          await _updateSyncStatus(noteUuid, 'synced', noteForHash: fresh);
+        }
         return SyncResult.success('冲突已解决');
       }
 
-      // 4. 执行同步
-      final syncResult = await _syncNote(note);
+      final syncResult = await _syncNote(note, preloadedRemote: preloadedRemote);
       if (!syncResult.isSuccess) {
         return syncResult;
       }
 
-      // 5. 同步笔记中的图片
-      await syncNoteImages(note);
-
-      // 6. 更新同步状态
-      await _updateSyncStatus(noteUuid, 'synced');
+      final after = await DB.instance.queryNoteByUuid(noteUuid);
+      if (after != null) {
+        await syncNoteImages(after);
+        await _updateSyncStatus(noteUuid, 'synced', noteForHash: after);
+      }
 
       print('Sync: 笔记同步完成');
       return SyncResult.success('笔记同步成功');
@@ -68,46 +73,36 @@ class SingleNoteSync {
     }
   }
 
-  /// 检查笔记是否需要同步
   Future<bool> _needsSync(Note note) async {
-    // 如果本地标记为未同步，肯定需要同步
     if (note.syncStatus != 'synced') {
       return true;
     }
-    
-    // 即使本地标记为已同步，也要检查远程文件是否存在
-    // 处理远程被删除但本地仍显示已同步的情况
+
     final remotePath = _getNoteRemotePath(note.uuid);
     final remoteFile = await _client.readProps(remotePath);
     if (remoteFile == null) {
-      // 远程文件不存在，需要重新上传
       print('Sync: 远程文件不存在，需要重新上传 ${note.uuid}');
       return true;
     }
-    
+
     return false;
   }
 
-  /// 检测冲突
-  Future<SyncConflict> _detectConflict(Note note) async {
+  Future<SyncConflict> _detectConflict(Note note, {Note? preloadedRemote}) async {
     final remotePath = _getNoteRemotePath(note.uuid);
-    
-    // 检查远程文件是否存在
     final remoteFile = await _client.readProps(remotePath);
     if (remoteFile == null) {
       return SyncConflict(false, null, null);
     }
 
-    // 获取远程笔记
-    final remoteContent = await _client.downloadString(remotePath);
-    final remoteNote = Note.fromMap(jsonDecode(remoteContent));
+    final remoteNote = preloadedRemote ??
+        Note.fromMap(jsonDecode(await _client.downloadString(remotePath)));
 
-    // 检查时间戳
-    final hasConflict = note.updatedAt != remoteNote.updatedAt;
+    final hasConflict =
+        noteSyncContentHash(note) != noteSyncContentHash(remoteNote);
     return SyncConflict(hasConflict, note, remoteNote);
   }
 
-  /// 处理冲突
   Future<void> _handleConflict(Note local, Note remote) async {
     final details = ConflictDetails(
       localNote: local,
@@ -118,66 +113,55 @@ class SingleNoteSync {
 
     ConflictResolution resolution;
     if (_context != null && _context!.mounted) {
-      // 显示冲突解决对话框
       final userChoice = await _conflictResolver.showConflictDialog(_context!, details);
       if (userChoice == null) {
         throw Exception('用户取消冲突解决');
       }
       resolution = userChoice;
     } else {
-      // 无上下文，自动解决
       resolution = ConflictResolution.useLocal;
     }
 
-    // 解决冲突
     final resolvedNote = await _conflictResolver.resolveConflict(details, resolution);
 
-    // 根据解决结果执行操作
     if (resolution == ConflictResolution.useLocal || resolution == ConflictResolution.merge) {
-      // 上传解决后的笔记
       await _uploadNote(resolvedNote);
     } else if (resolution == ConflictResolution.useRemote) {
-      // 下载远程笔记
       await _downloadNote(resolvedNote);
     }
   }
 
-  /// 同步笔记
-  Future<SyncResult> _syncNote(Note note) async {
-    // 检查远程文件是否存在
+  Future<SyncResult> _syncNote(Note note, {Note? preloadedRemote}) async {
     final remotePath = _getNoteRemotePath(note.uuid);
     final remoteFile = await _client.readProps(remotePath);
 
     if (remoteFile == null) {
-      // 远程不存在，上传
       return await _uploadNote(note);
-    } else {
-      // 远程存在，检查时间戳
-      final remoteContent = await _client.downloadString(remotePath);
-      final remoteNote = Note.fromMap(jsonDecode(remoteContent));
-
-      if (note.updatedAt > remoteNote.updatedAt) {
-        // 本地较新，上传
-        return await _uploadNote(note);
-      } else {
-        // 远程较新，下载
-        return await _downloadNote(remoteNote);
-      }
     }
+
+    final remoteNote = preloadedRemote ??
+        Note.fromMap(jsonDecode(await _client.downloadString(remotePath)));
+
+    if (note.updatedAt > remoteNote.updatedAt) {
+      return await _uploadNote(note);
+    }
+    if (note.updatedAt < remoteNote.updatedAt) {
+      return await _downloadNote(remoteNote);
+    }
+    // 时间戳相同：以内容指纹为准
+    if (noteSyncContentHash(note) != noteSyncContentHash(remoteNote)) {
+      return await _uploadNote(note);
+    }
+    return SyncResult.success('笔记已一致');
   }
 
-  /// 上传笔记
   Future<SyncResult> _uploadNote(Note note) async {
     try {
       final remotePath = _getNoteRemotePath(note.uuid);
-      
-      // 确保远程目录存在
       await _ensureRemoteDir(note.uuid);
-      
-      // 上传笔记
-      final jsonContent = jsonEncode(note.toJsonMap());
+      final toSend = await ensureNoteHasCategoryUuidForUpload(note);
+      final jsonContent = jsonEncode(toSend.toSyncWireJsonMap());
       await _client.uploadString(jsonContent, remotePath);
-      
       print('Sync: 笔记上传成功 ${note.uuid}');
       return SyncResult.success('笔记上传成功');
     } catch (e) {
@@ -186,19 +170,16 @@ class SingleNoteSync {
     }
   }
 
-  /// 下载笔记
   Future<SyncResult> _downloadNote(Note remoteNote) async {
     try {
-      // 1. 下载笔记中的图片
-      await _downloadNoteImages(remoteNote);
-      
-      // 2. 保存到本地数据库
-      await DB.instance.update(remoteNote.toDbMap(), where: 'uuid = ?', whereArgs: [remoteNote.uuid]);
-      
-      // 3. 更新同步状态
-      await _updateSyncStatus(remoteNote.uuid, 'synced');
-      
-      print('Sync: 笔记下载成功 ${remoteNote.uuid}');
+      final resolved = await resolveWireNoteForDb(remoteNote);
+      await _downloadNoteImages(resolved);
+      await DB.instance.update(
+        resolved.toDbMap(),
+        where: 'uuid = ?',
+        whereArgs: [resolved.uuid],
+      );
+      print('Sync: 笔记下载成功 ${resolved.uuid}');
       return SyncResult.success('笔记下载成功');
     } catch (e) {
       print('Sync: 笔记下载失败: $e');
@@ -206,136 +187,106 @@ class SingleNoteSync {
     }
   }
 
-  /// 下载笔记中的图片
   Future<void> _downloadNoteImages(Note note) async {
-    final images = _extractImagesFromDelta(note.deltaContent);
-    
+    final images = extractImagePathsFromQuillDelta(note.deltaContent);
     for (final imagePath in images) {
       await _downloadImage(imagePath);
     }
   }
 
-  /// 下载单张图片
   Future<void> _downloadImage(String relativePath) async {
+    final trimmed = relativePath.trim();
+    if (trimmed.isEmpty) return;
+    if (ImagePathResolver.isWebUrl(trimmed)) {
+      return;
+    }
     try {
-      // 获取本地绝对路径
-      final absolutePath = await ImagePathResolver.toAbsolutePath(relativePath);
-      final localFile = File(absolutePath);
-      
-      // 如果本地已存在，跳过下载
-      if (await localFile.exists()) {
-        print('Sync: 图片已存在，跳过下载 $relativePath');
+      final absolutePath = await ImagePathResolver.toAbsolutePath(trimmed);
+      if (ImagePathResolver.isWebUrl(absolutePath)) {
         return;
       }
-      
-      // 确保本地目录存在
+      final localFile = File(absolutePath);
+      if (await localFile.exists()) {
+        final len = await localFile.length();
+        if (len > 0) {
+          print('Sync: 图片已存在，跳过下载 $trimmed');
+          return;
+        }
+        await localFile.delete();
+      }
+
       final localDir = path.dirname(absolutePath);
       await Directory(localDir).create(recursive: true);
-      
-      // 构建远程路径
-      final fileName = path.basename(relativePath);
+
+      final fileName = path.basename(trimmed);
       final remotePath = 'benny/images/$fileName';
-      
-      // 下载图片
+
       print('Sync: 下载图片 $remotePath -> $absolutePath');
       await _client.downloadFile(remotePath, absolutePath);
-      print('Sync: 图片下载成功 $relativePath');
+      print('Sync: 图片下载成功 $trimmed');
     } catch (e) {
-      print('Sync: 图片下载失败 $relativePath: $e');
-      // 图片下载失败不影响笔记同步
+      print('Sync: 图片下载失败 $trimmed: $e');
     }
   }
 
-  /// 同步笔记中的图片
   Future<void> syncNoteImages(Note note) async {
-    // 提取笔记中的图片路径
-    final images = _extractImagesFromDelta(note.deltaContent);
-    
+    final images = extractImagePathsFromQuillDelta(note.deltaContent);
     for (final imagePath in images) {
       await _syncImage(imagePath);
     }
   }
 
-  /// 同步单张图片
   Future<void> _syncImage(String relativePath) async {
+    final trimmed = relativePath.trim();
+    if (trimmed.isEmpty) return;
+    if (ImagePathResolver.isWebUrl(trimmed)) {
+      return;
+    }
     try {
-      // 获取绝对路径
-      final absolutePath = await ImagePathResolver.toAbsolutePath(relativePath);
-      print('Sync: 图片绝对路径 $absolutePath');
-      
+      final absolutePath = await ImagePathResolver.toAbsolutePath(trimmed);
+      if (ImagePathResolver.isWebUrl(absolutePath)) {
+        return;
+      }
       final imageFile = File(absolutePath);
-      
       if (!await imageFile.exists()) {
-        print('Sync: 图片不存在 $relativePath (绝对路径: $absolutePath)');
+        print('Sync: 图片不存在 $trimmed');
         return;
       }
-      
-      // 检查文件是否可以读取
-      try {
-        final length = await imageFile.length();
-        print('Sync: 图片大小 $length bytes');
-      } catch (e) {
-        print('Sync: 无法读取图片文件 $relativePath: $e');
-        return;
-      }
-      
-      // 构建远程路径（图片直接放在 benny/images/ 下，不再嵌套 notes/images）
-      final fileName = path.basename(relativePath);
+
+      final fileName = path.basename(trimmed);
       final remotePath = 'benny/images/$fileName';
-      
-      // 确保远程目录存在
       await _client.mkdirAll('benny/images');
-      
-      // 上传图片
       await _client.uploadFile(absolutePath, remotePath);
-      print('Sync: 图片上传成功 $relativePath');
+      print('Sync: 图片上传成功 $trimmed');
     } catch (e) {
-      print('Sync: 图片同步失败 $relativePath: $e');
+      print('Sync: 图片同步失败 $trimmed: $e');
     }
   }
 
-  /// 提取笔记中的图片路径
-  List<String> _extractImagesFromDelta(List<dynamic>? delta) {
-    final images = <String>[];
-    if (delta == null) return images;
-    
-    for (final op in delta) {
-      if (op is Map && op.containsKey('insert')) {
-        final insert = op['insert'];
-        if (insert is Map && insert.containsKey('image')) {
-          final imagePath = insert['image'];
-          if (imagePath is String) {
-            images.add(imagePath);
-          }
-        }
-      }
-    }
-    return images;
-  }
-
-  /// 获取笔记的远程路径
   String _getNoteRemotePath(String uuid) {
     final shard = UuidGenerator.getDirectoryShard(uuid);
     return 'benny/notes/$shard/$uuid.json';
   }
 
-  /// 确保远程目录存在
   Future<void> _ensureRemoteDir(String uuid) async {
     final shard = UuidGenerator.getDirectoryShard(uuid);
     await _client.mkdirAll('benny/notes/$shard');
   }
 
-  /// 更新同步状态
-  Future<void> _updateSyncStatus(String noteUuid, String status) async {
+  Future<void> _updateSyncStatus(
+    String noteUuid,
+    String status, {
+    required Note noteForHash,
+  }) async {
     await DB.instance.updateSyncStatus(noteUuid, status);
     await DB.instance.updateSyncMeta(noteUuid, {
       'sync_status': status,
       'last_sync_at': DateTime.now().millisecondsSinceEpoch,
+      'content_hash': noteSyncContentHash(noteForHash),
     });
   }
 }
 
-/// 同步冲突
 class SyncConflict {
   final bool exists;
   final Note? localNote;

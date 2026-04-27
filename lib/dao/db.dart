@@ -1,10 +1,8 @@
-import 'dart:io';
-
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import 'package:path_provider/path_provider.dart';
 import '../domain/note.dart';
 import '../domain/category.dart';
+import '../utils/memo_data_paths.dart';
 import '../utils/uuid_generator.dart';
 import 'dart:convert';
 
@@ -21,17 +19,13 @@ class DB {
   }
 
   Future<Database> _open() async {
-    // 1. 获取应用文档目录
-    final docDir = await getApplicationDocumentsDirectory();
-    // 2. 创建子目录并生成完整路径
-    final dbFolder = '${docDir.path}/memo';
-    await Directory(dbFolder).create(recursive: true);
+    final dbFolder = await MemoDataPaths.databaseDirectoryPath();
     final dbPath = join(dbFolder, 'momo.db');
 
     // 3. 打开数据库（支持升级）
     return openDatabase(
       dbPath,
-      version: 7, // 👈 升级版本号到 7，添加 deleted_at 字段
+      version: 8, // v8: 分类 uuid / 同步字段，笔记 categoryUuid
       onCreate: (db, version) async {
         // 创建笔记表（UUID 主键）
         await db.execute('''
@@ -44,6 +38,7 @@ class DB {
             updatedAt INTEGER,
             archived INTEGER DEFAULT 0,
             categoryId INTEGER,
+            categoryUuid TEXT,
             syncStatus TEXT DEFAULT 'pending_upload',
             isDeleted INTEGER DEFAULT 0,
             deletedAt INTEGER
@@ -53,9 +48,12 @@ class DB {
         await db.execute('''
           CREATE TABLE categories(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            uuid TEXT UNIQUE,
             name TEXT NOT NULL,
             colorValue INTEGER NOT NULL,
-            createdAt INTEGER NOT NULL
+            createdAt INTEGER NOT NULL,
+            updatedAt INTEGER NOT NULL,
+            isDeleted INTEGER DEFAULT 0
           )
         ''');
         // 创建同步元数据表
@@ -161,6 +159,52 @@ class DB {
             await db.execute('ALTER TABLE notes ADD COLUMN deletedAt INTEGER');
             print('✅ Added deletedAt column to notes');
           }
+        }
+        if (oldVersion < 8) {
+          // v8: 分类 uuid / updatedAt / isDeleted；笔记 categoryUuid
+          var catCols = await db.rawQuery('PRAGMA table_info(categories)');
+          if (!catCols.any((row) => row['name'] == 'uuid')) {
+            await db.execute('ALTER TABLE categories ADD COLUMN uuid TEXT');
+            print('✅ Added categories.uuid');
+          }
+          catCols = await db.rawQuery('PRAGMA table_info(categories)');
+          if (!catCols.any((row) => row['name'] == 'updatedAt')) {
+            await db.execute('ALTER TABLE categories ADD COLUMN updatedAt INTEGER');
+            print('✅ Added categories.updatedAt');
+            await db.execute('UPDATE categories SET updatedAt = createdAt WHERE updatedAt IS NULL');
+          }
+          catCols = await db.rawQuery('PRAGMA table_info(categories)');
+          if (!catCols.any((row) => row['name'] == 'isDeleted')) {
+            await db.execute('ALTER TABLE categories ADD COLUMN isDeleted INTEGER DEFAULT 0');
+            print('✅ Added categories.isDeleted');
+          }
+          final cats = await db.query('categories');
+          for (final row in cats) {
+            final u = row['uuid'] as String?;
+            if (u == null || u.isEmpty) {
+              await db.update(
+                'categories',
+                {
+                  'uuid': UuidGenerator.generate(),
+                  'updatedAt': row['updatedAt'] ?? row['createdAt'],
+                },
+                where: 'id = ?',
+                whereArgs: [row['id']],
+              );
+            }
+          }
+          var noteCols = await db.rawQuery('PRAGMA table_info(notes)');
+          if (!noteCols.any((row) => row['name'] == 'categoryUuid')) {
+            await db.execute('ALTER TABLE notes ADD COLUMN categoryUuid TEXT');
+            print('✅ Added notes.categoryUuid');
+          }
+          await db.rawUpdate('''
+            UPDATE notes
+            SET categoryUuid = (
+              SELECT c.uuid FROM categories AS c WHERE c.id = notes.categoryId
+            )
+            WHERE categoryId IS NOT NULL
+          ''');
         }
       },
     );
@@ -409,6 +453,51 @@ class DB {
     );
   }
 
+  Future<String?> querySyncContentHash(String noteUuid) async {
+    final db = await instance.db;
+    final rows = await db.query(
+      'sync_meta',
+      columns: ['content_hash'],
+      where: 'note_uuid = ?',
+      whereArgs: [noteUuid],
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['content_hash'] as String?;
+  }
+
+  /// 合并远程与本地分类（按 uuid，取 updatedAt 较新者）后写入
+  Future<void> upsertCategoryFromSync(Category c) async {
+    if (c.uuid == null || c.uuid!.isEmpty) return;
+    final existing = await queryCategoryByUuid(c.uuid!);
+    if (existing == null) {
+      await insertCategory(
+        Category(
+          uuid: c.uuid,
+          name: c.name,
+          colorValue: c.colorValue,
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+          isDeleted: c.isDeleted,
+        ),
+      );
+      return;
+    }
+    // 仅用「严格更旧」跳过，避免与远程同版本时漏更新；占位分类时间戳为 1，会被远程覆盖
+    if (existing.updatedAt > c.updatedAt) return;
+    final db = await instance.db;
+    await db.update(
+      'categories',
+      {
+        'name': c.name,
+        'colorValue': c.colorValue,
+        'updatedAt': c.updatedAt,
+        'isDeleted': c.isDeleted ? 1 : 0,
+      },
+      where: 'id = ?',
+      whereArgs: [existing.id],
+    );
+  }
+
   // 同步元数据操作
   Future<void> updateSyncMeta(String noteUuid, Map<String, dynamic> data) async {
     final db = await instance.db;
@@ -448,13 +537,48 @@ class DB {
 
   Future<int> insertCategory(Category category) async {
     final db = await instance.db;
-    return db.insert('categories', category.toMap());
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final uuid = (category.uuid != null && category.uuid!.isNotEmpty)
+        ? category.uuid
+        : UuidGenerator.generate();
+    return db.insert('categories', {
+      'uuid': uuid,
+      'name': category.name,
+      'colorValue': category.colorValue,
+      'createdAt': category.createdAt,
+      'updatedAt': category.updatedAt > 0 ? category.updatedAt : now,
+      'isDeleted': category.isDeleted ? 1 : 0,
+    });
   }
 
   Future<List<Category>> queryAllCategories() async {
     final db = await instance.db;
+    final maps = await db.query(
+      'categories',
+      where: 'isDeleted = 0 OR isDeleted IS NULL',
+      orderBy: 'createdAt ASC',
+    );
+    return maps.map((e) => Category.fromMap(e)).toList();
+  }
+
+  /// 含已软删分类（同步合并用）
+  Future<List<Category>> queryAllCategoriesForSync() async {
+    final db = await instance.db;
     final maps = await db.query('categories', orderBy: 'createdAt ASC');
     return maps.map((e) => Category.fromMap(e)).toList();
+  }
+
+  Future<Category?> queryCategoryByUuid(String uuid) async {
+    final db = await instance.db;
+    final maps = await db.query(
+      'categories',
+      where: 'uuid = ?',
+      whereArgs: [uuid],
+    );
+    if (maps.isNotEmpty) {
+      return Category.fromMap(maps.first);
+    }
+    return null;
   }
 
   Future<Category?> queryCategoryById(int id) async {
@@ -472,24 +596,67 @@ class DB {
 
   Future<int> updateCategory(Category category) async {
     final db = await instance.db;
+    final now = DateTime.now().millisecondsSinceEpoch;
     return db.update(
       'categories',
-      category.toMap(),
+      {
+        'uuid': category.uuid,
+        'name': category.name,
+        'colorValue': category.colorValue,
+        'createdAt': category.createdAt,
+        'updatedAt': now,
+        'isDeleted': category.isDeleted ? 1 : 0,
+      },
       where: 'id = ?',
       whereArgs: [category.id],
     );
   }
 
+  /// 软删除分类（保留 uuid 供同步）
+  /// 分类同步入库后，按 [categoryUuid] 回填 [categoryId]，修复「分类已有但笔记仍显示未分类」
+  Future<void> relinkNoteCategoryIdsFromUuids() async {
+    final db = await instance.db;
+    final rows = await db.query(
+      'notes',
+      columns: ['uuid', 'categoryId', 'categoryUuid'],
+      where: 'categoryUuid IS NOT NULL AND categoryUuid != ?',
+      whereArgs: [''],
+    );
+    for (final row in rows) {
+      final uid = (row['categoryUuid'] as String?)?.trim();
+      if (uid == null || uid.isEmpty) continue;
+      final cat = await queryCategoryByUuid(uid);
+      if (cat?.id == null || cat!.isDeleted) continue;
+      final nid = row['categoryId'] as int?;
+      if (nid == cat.id) continue;
+      await db.update(
+        'notes',
+        {'categoryId': cat.id},
+        where: 'uuid = ?',
+        whereArgs: [row['uuid']],
+      );
+    }
+  }
+
   Future<int> deleteCategory(int id) async {
     final db = await instance.db;
-    // 删除分类时，将该分类下的笔记设为未分类
+    final now = DateTime.now().millisecondsSinceEpoch;
     await db.update(
       'notes',
-      {'categoryId': null},
+      {
+        'categoryId': null,
+        'categoryUuid': null,
+        'syncStatus': 'pending_upload',
+      },
       where: 'categoryId = ?',
       whereArgs: [id],
     );
-    return await db.delete('categories', where: 'id = ?', whereArgs: [id]);
+    return db.update(
+      'categories',
+      {'isDeleted': 1, 'updatedAt': now},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   Future<int> getNoteCountByCategory(int categoryId) async {

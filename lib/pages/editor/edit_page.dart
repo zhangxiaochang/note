@@ -59,6 +59,11 @@ class _EditPageState extends State<EditPage> {
     }
     final plainText = getPlainText(content);
     final db = await DB.instance.db;
+    String? categoryUuid;
+    if (categoryId != null) {
+      final cat = await DB.instance.queryCategoryById(categoryId);
+      categoryUuid = cat?.uuid;
+    }
 
     if (widget.note == null) {
       // ======== 新增 ========
@@ -70,6 +75,7 @@ class _EditPageState extends State<EditPage> {
         'createdAt': DateTime.now().millisecondsSinceEpoch,
         'updatedAt': DateTime.now().millisecondsSinceEpoch,
         'categoryId': categoryId,
+        'categoryUuid': categoryUuid,
         'syncStatus': 'pending_upload',
       });
     } else {
@@ -82,6 +88,7 @@ class _EditPageState extends State<EditPage> {
           'deltaContent': jsonEncode(content),
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
           'categoryId': categoryId,
+          'categoryUuid': categoryUuid,
           'syncStatus': 'pending_upload',
         },
         where: 'uuid = ?',

@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../domain/note.dart';
+import 'note_sync_hash.dart';
 import '../../dao/db.dart';
 import '../services/sync_client_base.dart';
 
@@ -49,9 +49,8 @@ class ConflictResolver {
     final remoteContent = await _client.downloadString(remotePath);
     final remoteNote = Note.fromMap(jsonDecode(remoteContent));
 
-    // 检查是否有冲突
-    if (localNote.updatedAt == remoteNote.updatedAt) {
-      return null; // 无冲突
+    if (noteSyncContentHash(localNote) == noteSyncContentHash(remoteNote)) {
+      return null;
     }
 
     return ConflictDetails(
@@ -108,6 +107,7 @@ class ConflictResolver {
       updatedAt: DateTime.now().millisecondsSinceEpoch,
       archived: local.archived || remote.archived,
       categoryId: local.categoryId ?? remote.categoryId,
+      categoryUuid: local.categoryUuid ?? remote.categoryUuid,
       syncStatus: 'pending_upload',
     );
   }

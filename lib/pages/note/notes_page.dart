@@ -1210,6 +1210,7 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
     // 加载时传入空列表，isLoading 控制骨架屏显示
     return HomePageBody(
       notes: _getFilteredNotes(),
+      categories: _categories,
       onRefresh: _loadData,
       isCardView: themeProvider.isCardView,
       refreshCount: _refreshCount,

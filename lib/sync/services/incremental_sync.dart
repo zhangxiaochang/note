@@ -7,6 +7,9 @@ import '../../dao/db.dart';
 import '../../domain/note.dart';
 import '../models/sync_progress.dart';
 import '../models/sync_state.dart';
+import '../utils/note_sync_hash.dart';
+import '../utils/note_wire_resolve.dart';
+import 'category_sync_service.dart';
 import 'single_note_sync.dart';
 import 'sync_client_base.dart';
 
@@ -60,6 +63,10 @@ class IncrementalSync {
 
       _progress?.setPhase(SyncPhase.preparing, message: '正在连接服务器…');
       await _client.ping();
+      _ensureNotCancelled();
+
+      _progress?.setPhase(SyncPhase.preparing, message: '正在同步分类…');
+      await CategorySyncService.sync(_client);
       _ensureNotCancelled();
 
       final localNotes = await _getLocalNotesToSync();
@@ -213,7 +220,7 @@ class IncrementalSync {
         switch (resolution) {
           case ConflictResolution.useLocal:
             print('Sync: 本地版本较新，恢复笔记 ${localNote.uuid}');
-            final result = await _singleNoteSync.syncNote(localNote.uuid);
+            final result = await _singleNoteSync.syncNote(localNote.uuid, forceSync: true);
             if (!result.isSuccess) {
               errors.add('${localNote.uuid}: ${result.message}');
             }
@@ -223,9 +230,13 @@ class IncrementalSync {
             await _deleteLocalNote(localNote.uuid);
             break;
           case ConflictResolution.noConflict:
-            if (await _needsSync(localNote, remoteInfo)) {
+            if (await _needsSync(localNote, remoteNote)) {
               print('Sync: 修改笔记 ${localNote.uuid}');
-              final result = await _singleNoteSync.syncNote(localNote.uuid);
+              final result = await _singleNoteSync.syncNote(
+                localNote.uuid,
+                preloadedRemote: remoteNote,
+                forceSync: true,
+              );
               if (!result.isSuccess) {
                 errors.add('${localNote.uuid}: ${result.message}');
               }
@@ -274,61 +285,35 @@ class IncrementalSync {
     }
   }
 
-  Future<bool> _needsSync(Note localNote, RemoteNoteInfo remoteInfo) async {
+  Future<bool> _needsSync(Note localNote, Note remoteNote) async {
     if (localNote.syncStatus != 'synced') {
       return true;
     }
-
-    if (localNote.updatedAt > remoteInfo.mTime) {
-      return true;
-    }
-
-    final localHash = await _calculateNoteHash(localNote);
-    final remoteHash = await _calculateRemoteNoteHash(remoteInfo.path);
-
-    return localHash != remoteHash;
+    return noteSyncContentHash(localNote) != noteSyncContentHash(remoteNote);
   }
 
   Future<void> _downloadNewNote(RemoteNoteInfo remoteInfo) async {
     try {
       final content = await _client.downloadString(remoteInfo.path);
-      final noteMap = jsonDecode(content);
+      final noteMap = jsonDecode(content) as Map<String, dynamic>;
 
-      final note = Note.fromMap(noteMap);
+      final raw = Note.fromMap(noteMap);
+      final note = await resolveWireNoteForDb(raw);
 
       await DB.instance.insert(note);
 
       await _singleNoteSync.syncNoteImages(note);
 
       await DB.instance.updateSyncStatus(note.uuid, 'synced');
+      await DB.instance.updateSyncMeta(note.uuid, {
+        'content_hash': noteSyncContentHash(note),
+        'last_sync_at': DateTime.now().millisecondsSinceEpoch,
+      });
 
       print('Sync: 下载新笔记成功 ${note.uuid}');
     } catch (e) {
       print('Sync: 下载新笔记失败 ${remoteInfo.uuid}: $e');
     }
-  }
-
-  Future<String> _calculateNoteHash(Note note) async {
-    final content = jsonEncode(note.toJsonMap());
-    return _calculateHash(content);
-  }
-
-  Future<String> _calculateRemoteNoteHash(String remotePath) async {
-    try {
-      final content = await _client.downloadString(remotePath);
-      return _calculateHash(content);
-    } catch (e) {
-      return '';
-    }
-  }
-
-  String _calculateHash(String input) {
-    int hash = 0;
-    for (int i = 0; i < input.length; i++) {
-      hash = ((hash << 5) - hash) + input.codeUnitAt(i);
-      hash = hash & hash;
-    }
-    return hash.toString();
   }
 
   Future<void> _updateGlobalSyncState() async {

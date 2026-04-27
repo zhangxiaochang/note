@@ -314,9 +314,12 @@ class _CategoryEditDialogState extends State<CategoryEditDialog> {
             }
             final category = Category(
               id: widget.category?.id,
+              uuid: widget.category?.uuid,
               name: name,
               colorValue: _selectedColor.value,
               createdAt: widget.category?.createdAt ?? DateTime.now().millisecondsSinceEpoch,
+              updatedAt: DateTime.now().millisecondsSinceEpoch,
+              isDeleted: widget.category?.isDeleted ?? false,
             );
             Navigator.pop(context, category);
           },

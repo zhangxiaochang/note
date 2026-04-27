@@ -1,13 +1,13 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
+import 'memo_data_paths.dart';
 
 class ImagePathResolver {
   static final RegExp _windowsDrivePath = RegExp(r'^[a-zA-Z]:[\\/]');
 
   static Future<Directory> getAppDir() async {
-    return getApplicationDocumentsDirectory();
+    return MemoDataPaths.contentRootDirectory();
   }
 
   static bool isWebUrl(String value) {
