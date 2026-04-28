@@ -1,5 +1,5 @@
 /// 同步 item 与状态约定（阶段 0–2：与 [sync_items] 表、后续 Synchronizer 共用）；
-/// 远端路径仍遵循 `benny/notes/...`、`benny/images/...`、`benny/meta/categories.json`，不在此改布局。
+/// 远端路径遵循 `benny/data/notes/...`、`benny/data/images/...`、`benny/data/categories/categories.json`。
 ///
 /// `sync_items.item_type` / [SyncItemType]
 abstract final class SyncItemType {
@@ -10,7 +10,7 @@ abstract final class SyncItemType {
   static const String categoryIndex = 'category_index';
 }
 
-/// `sync_items.item_id` 约定：笔记为 [Note.uuid]；图片为远程 `benny/images/` 下文件名；分类索引为 [SyncItemIds.categoryIndexId]。
+/// `sync_items.item_id` 约定：笔记为 [Note.uuid]；图片为远程 `benny/data/images/` 下文件名；分类索引为 [SyncItemIds.categoryIndexId]。
 abstract final class SyncItemIds {
   SyncItemIds._();
 

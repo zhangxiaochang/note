@@ -76,6 +76,38 @@ class WebdavClient extends SyncClientBase {
     return Uri.encodeFull(normalized);
   }
 
+  void _logWebdavError(String op, String remotePath, Object error) {
+    final normalized = _normalizePath(remotePath);
+    final fullUrl = '$_url$normalized';
+    if (error is DioException) {
+      final status = error.response?.statusCode;
+      final statusText = error.response?.statusMessage;
+      final body = error.response?.data?.toString();
+      final bodyShort = body == null
+          ? ''
+          : (body.length > 240 ? '${body.substring(0, 240)}...' : body);
+      // ignore: avoid_print
+      print(
+        'WebDAV[$op] 失败\n'
+        '  path: $remotePath\n'
+        '  normalized: $normalized\n'
+        '  url: $fullUrl\n'
+        '  status: $status $statusText\n'
+        '  message: ${error.message}\n'
+        '  body: $bodyShort',
+      );
+      return;
+    }
+    // ignore: avoid_print
+    print(
+      'WebDAV[$op] 失败\n'
+      '  path: $remotePath\n'
+      '  normalized: $normalized\n'
+      '  url: $fullUrl\n'
+      '  error: $error',
+    );
+  }
+
   @override
   String get protocolName => 'WebDAV';
 
@@ -142,13 +174,24 @@ class WebdavClient extends SyncClientBase {
   @override
   Future<void> mkdirAll(String path) async {
     final normalizedPath = _normalizePath(path, isDir: true);
-    await _requireClient.mkdirAll(normalizedPath);
+    try {
+      await _requireClient.mkdirAll(normalizedPath);
+    } catch (e) {
+      _logWebdavError('mkdirAll', path, e);
+      rethrow;
+    }
   }
 
   @override
   Future<List<RemoteFile>> readDir(String path) async {
     final normalizedPath = _normalizePath(path, isDir: true);
-    final files = await _requireClient.readDir(normalizedPath);
+    List<dynamic> files;
+    try {
+      files = await _requireClient.readDir(normalizedPath);
+    } catch (e) {
+      _logWebdavError('readDir', path, e);
+      rethrow;
+    }
 
     return files.map((file) => RemoteFile(
       path: file.path,
@@ -179,6 +222,7 @@ class WebdavClient extends SyncClientBase {
         mTime: file.mTime,
       );
     } catch (e) {
+      _logWebdavError('readProps', path, e);
       // 文件不存在或其他错误时返回 null
       return null;
     }
@@ -187,7 +231,12 @@ class WebdavClient extends SyncClientBase {
   @override
   Future<void> remove(String path) async {
     final normalizedPath = _normalizePath(path);
-    await _requireClient.remove(normalizedPath);
+    try {
+      await _requireClient.remove(normalizedPath);
+    } catch (e) {
+      _logWebdavError('remove', path, e);
+      rethrow;
+    }
   }
 
   @override
@@ -242,9 +291,10 @@ class WebdavClient extends SyncClientBase {
           }
         },
       );
-      print('上传响应: ${response}');
+      // ignore: avoid_print
+      print('WebDAV[uploadFile] 成功 path=$remotePath status=${response.statusCode}');
     } catch (e) {
-      print('上传错误: $e');
+      _logWebdavError('uploadFile', remotePath, e);
       throw Exception('Upload failed: $e');
     }
     
@@ -266,7 +316,13 @@ class WebdavClient extends SyncClientBase {
     }
 
     // 读取远程文件内容
-    final bytes = await _requireClient.read(normalizedRemotePath);
+    List<int> bytes;
+    try {
+      bytes = await _requireClient.read(normalizedRemotePath);
+    } catch (e) {
+      _logWebdavError('downloadFile', remotePath, e);
+      rethrow;
+    }
 
     // 创建本地文件
     final file = File(localPath);
@@ -293,7 +349,13 @@ class WebdavClient extends SyncClientBase {
   @override
   Future<String> downloadString(String path) async {
     final normalizedPath = _normalizePath(path);
-    final bytes = await _requireClient.read(normalizedPath);
+    List<int> bytes;
+    try {
+      bytes = await _requireClient.read(normalizedPath);
+    } catch (e) {
+      _logWebdavError('downloadString', path, e);
+      rethrow;
+    }
     return utf8.decode(bytes);
   }
 
@@ -319,6 +381,7 @@ class WebdavClient extends SyncClientBase {
         ),
       );
     } catch (e) {
+      _logWebdavError('uploadString', path, e);
       throw Exception('Upload string failed: $e');
     }
   }

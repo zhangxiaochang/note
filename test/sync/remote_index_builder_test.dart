@@ -5,38 +5,38 @@ import 'package:project/sync/services/sync_client_base.dart';
 
 void main() {
   group('RemoteIndexBuilder', () {
-    test('lists notes under benny/notes shards', () async {
+    test('lists notes under benny/data/notes shards', () async {
       final t1 = DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true);
       final t2 = DateTime.fromMillisecondsSinceEpoch(2000, isUtc: true);
       final client = _FakeSyncClient(
         dirs: {
-          'benny/notes': [
+          'benny/data/notes': [
             RemoteFile(name: 'ab', isDir: true, mTime: t1),
           ],
-          'benny/notes/ab': [
+          'benny/data/notes/ab': [
             RemoteFile(
               name: 'n1.json',
               isDir: false,
               mTime: t2,
             ),
           ],
-          'benny/images': <RemoteFile>[],
+          'benny/data/images': <RemoteFile>[],
         },
         categoryProps: null,
       );
 
       final index = await RemoteIndexBuilder.build(client);
       expect(index.noteCount, 1);
-      expect(index.notesByUuid['n1']?.path, 'benny/notes/ab/n1.json');
+      expect(index.notesByUuid['n1']?.path, 'benny/data/notes/ab/n1.json');
       expect(index.imageFileCount, 0);
     });
 
-    test('lists image files under benny/images', () async {
+    test('lists image files under benny/data/images', () async {
       final mt = DateTime.fromMillisecondsSinceEpoch(500, isUtc: true);
       final client = _FakeSyncClient(
         dirs: {
-          'benny/notes': <RemoteFile>[],
-          'benny/images': [
+          'benny/data/notes': <RemoteFile>[],
+          'benny/data/images': [
             RemoteFile(name: 'a.png', isDir: false, mTime: mt, size: 10),
           ],
         },
@@ -45,7 +45,7 @@ void main() {
 
       final index = await RemoteIndexBuilder.build(client);
       expect(index.imageFileCount, 1);
-      expect(index.imagesByFileName['a.png']?.path, 'benny/images/a.png');
+      expect(index.imagesByFileName['a.png']?.path, 'benny/data/images/a.png');
     });
   });
 }
@@ -92,7 +92,7 @@ class _FakeSyncClient implements SyncClientBase {
 
   @override
   Future<RemoteFile?> readProps(String path) async {
-    if (path == 'benny/meta/categories.json') {
+    if (path == 'benny/data/categories/categories.json') {
       return categoryProps;
     }
     return null;

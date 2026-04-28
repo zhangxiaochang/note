@@ -115,7 +115,7 @@ class ConflictResolver {
   /// 创建冲突副本
   Future<void> _createConflictCopy(ConflictDetails details) async {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final conflictDir = 'benny/conflicts/${details.localNote.uuid}';
+    final conflictDir = 'benny/data/conflicts/${details.localNote.uuid}';
 
     // 确保冲突目录存在
     await _client.mkdirAll(conflictDir);
@@ -192,6 +192,6 @@ class ConflictResolver {
   /// 获取笔记的远程路径
   String _getNoteRemotePath(String uuid) {
     final shard = uuid.substring(0, 2).toLowerCase();
-    return 'benny/notes/$shard/$uuid.json';
+    return 'benny/data/notes/$shard/$uuid.json';
   }
 }

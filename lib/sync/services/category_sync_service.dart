@@ -4,9 +4,10 @@ import '../../dao/db.dart';
 import '../../domain/category.dart';
 import 'sync_client_base.dart';
 
-/// 远程 `benny/meta/categories.json` 与本地分类合并（按 uuid，取 updatedAt 较新）
+/// 远程 `benny/data/categories/categories.json` 与本地分类合并（按 uuid，取 updatedAt 较新）
 class CategorySyncService {
-  static const String remotePath = 'benny/meta/categories.json';
+  static const String remoteDir = 'benny/data/categories';
+  static const String remotePath = '$remoteDir/categories.json';
 
   static String _stripBom(String raw) {
     var s = raw.trimLeft();
@@ -48,7 +49,7 @@ class CategorySyncService {
   }
 
   static Future<void> sync(SyncClientBase client) async {
-    await client.mkdirAll('benny/meta');
+    await client.mkdirAll(remoteDir);
     final local = await DB.instance.queryAllCategoriesForSync();
     var remote = <Category>[];
     var remoteReadFailed = false;

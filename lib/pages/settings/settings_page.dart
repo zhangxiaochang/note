@@ -1,7 +1,11 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/BackupActions.dart';
 import '../../services/theme_provider.dart';
+import '../../utils/storage_location_prefs.dart';
 import '../sync/sync_progress_page.dart';
 import '../../utils/storage_analyzer_page.dart';
 import 'webdav_config_dialog.dart';
@@ -16,6 +20,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  String _storagePath = '未设置';
 
   @override
   void initState() {
@@ -29,6 +34,57 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
       curve: Curves.easeOutCubic,
     );
     _animationController.forward();
+    _loadStoragePath();
+  }
+
+  Future<void> _loadStoragePath() async {
+    final value = await StorageLocationPrefs.getStorageRootPath();
+    if (!mounted) return;
+    setState(() {
+      _storagePath = (value == null || value.isEmpty) ? '未设置' : value;
+    });
+  }
+
+  String _storageSubtitle() {
+    if (_storagePath == '未设置') return _storagePath;
+    return '配置：$_storagePath/config/app_config.json\n数据库：$_storagePath/data/db/momo.db\n图片：$_storagePath/data/images';
+  }
+
+  Future<void> _pickStoragePath() async {
+    final selected = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: '选择笔记数据目录',
+    );
+    if (selected == null || selected.trim().isEmpty || !mounted) return;
+
+    final parent = selected.trim();
+    final path = StorageLocationPrefs.resolveBennyRoot(parent);
+    try {
+      final dir = Directory(path);
+      await dir.create(recursive: true);
+      await Directory('$path/config').create(recursive: true);
+      await Directory('$path/data').create(recursive: true);
+      await Directory('$path/data/db').create(recursive: true);
+      await Directory('$path/data/images').create(recursive: true);
+      final probe = File('$path/.memo_write_probe');
+      await probe.writeAsString('ok', flush: true);
+      if (await probe.exists()) {
+        await probe.delete();
+      }
+
+      await StorageLocationPrefs.setStorageRootPath(path);
+      if (!mounted) return;
+      setState(() {
+        _storagePath = path;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已保存目录并创建 benny/config、benny/data/db、benny/data/images：$path；建议重启应用后继续使用。')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('目录不可写，请重新选择：$e')),
+      );
+    }
   }
 
   @override
@@ -102,6 +158,15 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
                     title: '数据管理',
                     icon: Icons.folder_outlined,
                     children: [
+                      _buildSettingsTile(
+                        context: context,
+                        isDark: isDark,
+                        icon: Icons.folder_special_outlined,
+                        iconColor: Colors.deepOrange,
+                        title: '数据存储位置',
+                        subtitle: _storageSubtitle(),
+                        onTap: _pickStoragePath,
+                      ),
                       _buildSettingsTile(
                         context: context,
                         isDark: isDark,

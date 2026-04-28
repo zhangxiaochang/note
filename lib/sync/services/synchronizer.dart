@@ -70,13 +70,19 @@ class Synchronizer {
       await _client.ping();
       _ensureNotCancelled();
 
+      _progress?.setPhase(SyncPhase.preparing, message: '正在检查远端目录…');
+      await _singleNoteSync.ensureRemoteRoots();
+      _ensureNotCancelled();
+
       _progress?.setPhase(SyncPhase.preparing, message: '正在同步分类…');
       try {
         await CategorySyncService.sync(_client);
         await SyncItemDao.instance.markCategoryIndexSynced();
       } catch (e) {
         await SyncItemDao.instance.markCategoryIndexFailure(e.toString());
-        rethrow;
+        // 分类索引失败不阻断笔记/图片主流程，避免目录权限差异导致整轮同步不可用。
+        // ignore: avoid_print
+        print('Sync: 分类同步失败，继续笔记主流程: $e');
       }
       _ensureNotCancelled();
 
@@ -124,11 +130,19 @@ class Synchronizer {
     } catch (e) {
       // ignore: avoid_print
       print('Sync: 增量同步失败: $e');
+      final message = '$e';
+      if (message.contains('Unauthorized') || message.contains('401')) {
+        return SyncResult.failure(
+          '同步失败：服务器拒绝认证（401 Unauthorized）。请检查 WebDAV 地址/账号/密码，或确认该路径有读写权限。',
+          SyncFailureType.networkError,
+        );
+      }
       return SyncResult.failure('同步失败: $e', SyncFailureType.unknown);
     }
   }
 
-  Future<List<Note>> _getLocalNotesToSync() => DB.instance.queryAll();
+  // 删除同步依赖 tombstone（isDeleted=1）上传，因此这里必须包含已删除笔记。
+  Future<List<Note>> _getLocalNotesToSync() => DB.instance.queryAllIncludingDeleted();
 
   Future<Map<String, RemoteNoteInfo>> _getRemoteNotes() async {
     final index = await RemoteIndexBuilder.build(_client);
@@ -279,11 +293,12 @@ class Synchronizer {
       final noteMap = jsonDecode(content) as Map<String, dynamic>;
 
       final raw = Note.fromMap(noteMap);
-      final note = await resolveWireNoteForDb(raw);
+      final resolved = await resolveWireNoteForDb(raw);
+      final note = _singleNoteSync.normalizeNoteImageRefs(resolved);
 
       await DB.instance.insert(note);
 
-      await _singleNoteSync.syncNoteImages(note);
+      await _singleNoteSync.downloadNoteImages(note);
 
       await DB.instance.updateSyncStatus(note.uuid, 'synced');
       await DB.instance.updateSyncMeta(note.uuid, {

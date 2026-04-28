@@ -1,5 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../sync/services/webdav_client.dart';
+import '../utils/storage_location_prefs.dart';
 
 /// WebDAV 配置数据模型
 class WebDAVConfig {
@@ -43,18 +48,62 @@ class WebDAVConfig {
 /// WebDAV 配置服务
 class WebDAVConfigService {
   static const String _keyWebDAVConfig = 'webdav_config';
+  static const String _keyWebDavNode = 'webdav';
+
+  static Future<File?> _customConfigFile() async {
+    final root = await StorageLocationPrefs.getStorageRootPath();
+    if (root == null || root.isEmpty) return null;
+    final configDir = Directory(p.join(root, 'config'));
+    await configDir.create(recursive: true);
+    return File(p.join(configDir.path, 'app_config.json'));
+  }
+
+  static Future<Map<String, dynamic>> _readCustomConfig() async {
+    final file = await _customConfigFile();
+    if (file == null || !await file.exists()) return <String, dynamic>{};
+    try {
+      final content = await file.readAsString();
+      if (content.trim().isEmpty) return <String, dynamic>{};
+      final json = jsonDecode(content);
+      if (json is Map<String, dynamic>) return json;
+      return <String, dynamic>{};
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  static Future<void> _writeCustomConfig(Map<String, dynamic> data) async {
+    final file = await _customConfigFile();
+    if (file == null) return;
+    await file.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(data),
+      flush: true,
+    );
+  }
 
   /// 保存 WebDAV 配置到本地
   static Future<void> saveConfig(WebDAVConfig config) async {
+    final custom = await _readCustomConfig();
+    custom[_keyWebDavNode] = config.toJson();
+    await _writeCustomConfig(custom);
+
+    // 迁移完成后清理旧 SharedPreferences 位置
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyWebDAVConfig, '${config.url}|${config.username}|${config.password}');
+    await prefs.remove(_keyWebDAVConfig);
   }
 
   /// 从本地加载 WebDAV 配置
   static Future<WebDAVConfig> loadConfig() async {
+    final custom = await _readCustomConfig();
+    final node = custom[_keyWebDavNode];
+    if (node is Map<String, dynamic>) {
+      final cfg = WebDAVConfig.fromJson(node);
+      if (cfg.isValid) return cfg;
+    }
+
+    // 兼容旧版 SharedPreferences，并在读取后自动迁移
     final prefs = await SharedPreferences.getInstance();
     final configString = prefs.getString(_keyWebDAVConfig);
-
     if (configString == null || configString.isEmpty) {
       return WebDAVConfig.empty();
     }
@@ -62,11 +111,15 @@ class WebDAVConfigService {
     // 解析存储的配置字符串
     final parts = configString.split('|');
     if (parts.length >= 3) {
-      return WebDAVConfig(
+      final cfg = WebDAVConfig(
         url: parts[0],
         username: parts[1],
         password: parts[2],
       );
+      if (cfg.isValid) {
+        await saveConfig(cfg);
+      }
+      return cfg;
     }
 
     return WebDAVConfig.empty();
@@ -74,6 +127,10 @@ class WebDAVConfigService {
 
   /// 清除 WebDAV 配置
   static Future<void> clearConfig() async {
+    final custom = await _readCustomConfig();
+    custom.remove(_keyWebDavNode);
+    await _writeCustomConfig(custom);
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyWebDAVConfig);
   }

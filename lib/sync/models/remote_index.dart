@@ -3,9 +3,9 @@ import 'remote_note_info.dart';
 
 /// 一次「列远端」得到的索引（阶段 2），供 Synchronizer / 增量同步做 diff。
 ///
-/// [notesByUuid]：`benny/notes/{shard}/*.json`
-/// [imagesByFileName]：`benny/images/*` 文件名 -> 元数据
-/// [categoryIndex]：若存在 `benny/meta/categories.json` 的 [RemoteFile] 元数据
+/// [notesByUuid]：`benny/data/notes/{shard}/*.json`
+/// [imagesByFileName]：`benny/data/images/*` 文件名 -> 元数据
+/// [categoryIndex]：`benny/data/categories/categories.json` 的 [RemoteFile] 元数据
 class RemoteIndex {
   const RemoteIndex({
     required this.notesByUuid,
@@ -21,7 +21,7 @@ class RemoteIndex {
   int get imageFileCount => imagesByFileName.length;
 }
 
-/// `benny/images/{fileName}` 在远端的一条记录
+/// `benny/data/images/{fileName}` 在远端的一条记录
 class RemoteImageInfo {
   const RemoteImageInfo({
     required this.fileName,

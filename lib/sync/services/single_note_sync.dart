@@ -13,13 +13,18 @@ import '../models/sync_state.dart';
 import '../utils/conflict_resolver.dart';
 import '../utils/note_sync_hash.dart';
 import '../utils/note_wire_resolve.dart';
+import 'category_sync_service.dart';
 import 'sync_client_base.dart';
 
 /// 单笔记同步服务
 class SingleNoteSync {
+  static const String _notesRoot = 'benny/data/notes';
+  static const String _imagesRoot = 'benny/data/images';
+
   final SyncClientBase _client;
   final ConflictResolver _conflictResolver;
   BuildContext? _context;
+  bool _remoteRootsEnsured = false;
 
   SingleNoteSync(this._client) : _conflictResolver = ConflictResolver(_client);
 
@@ -183,9 +188,11 @@ class SingleNoteSync {
 
   Future<SyncResult> _uploadNote(Note note) async {
     try {
+      await ensureRemoteRoots();
       final remotePath = _getNoteRemotePath(note.uuid);
       await _ensureRemoteDir(note.uuid);
-      final toSend = await ensureNoteHasCategoryUuidForUpload(note);
+      final withCategory = await ensureNoteHasCategoryUuidForUpload(note);
+      final toSend = normalizeNoteImageRefs(withCategory);
       final jsonContent = jsonEncode(toSend.toSyncWireJsonMap());
       await _client.uploadString(jsonContent, remotePath);
       print('Sync: 笔记上传成功 ${note.uuid}');
@@ -198,7 +205,7 @@ class SingleNoteSync {
 
   Future<SyncResult> _downloadNote(Note remoteNote) async {
     try {
-      final resolved = await resolveWireNoteForDb(remoteNote);
+      final resolved = normalizeNoteImageRefs(await resolveWireNoteForDb(remoteNote));
       await _downloadNoteImages(resolved);
       await DB.instance.update(
         resolved.toDbMap(),
@@ -245,7 +252,7 @@ class SingleNoteSync {
       await Directory(localDir).create(recursive: true);
 
       final fileName = path.basename(trimmed);
-      final remotePath = 'benny/images/$fileName';
+      final remotePath = '$_imagesRoot/$fileName';
 
       print('Sync: 下载图片 $remotePath -> $absolutePath');
       await _client.downloadFile(remotePath, absolutePath);
@@ -260,6 +267,56 @@ class SingleNoteSync {
     for (final imagePath in images) {
       await _syncImage(imagePath);
     }
+  }
+
+  /// 仅下载图片（用于「远端拉新」分支），避免误走上传逻辑。
+  Future<void> downloadNoteImages(Note note) async {
+    await _downloadNoteImages(normalizeNoteImageRefs(note));
+  }
+
+  /// 将图片引用规范为 `images/<fileName>`，避免跨设备绝对路径失效。
+  Note normalizeNoteImageRefs(Note note) {
+    final delta = note.deltaContent;
+    if (delta == null || delta.isEmpty) return note;
+
+    var changed = false;
+    final normalizedDelta = <dynamic>[];
+    for (final op in delta) {
+      if (op is Map && op['insert'] is Map) {
+        final insert = op['insert'];
+        final image = insert['image'];
+        if (image is String && image.trim().isNotEmpty) {
+          final normalized = _normalizeImageRef(image);
+          if (normalized != image.trim()) {
+            changed = true;
+            final newInsert = Map<String, dynamic>.from(insert as Map);
+            newInsert['image'] = normalized;
+            final newOp = Map<String, dynamic>.from(op);
+            newOp['insert'] = newInsert;
+            normalizedDelta.add(newOp);
+            continue;
+          }
+        }
+      }
+      normalizedDelta.add(op);
+    }
+
+    if (!changed) return note;
+    return note.copyWith(deltaContent: normalizedDelta);
+  }
+
+  String _normalizeImageRef(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty || ImagePathResolver.isWebUrl(value)) return value;
+
+    final normalizedSlash = value.replaceAll('\\', '/');
+    if (normalizedSlash.startsWith('images/')) {
+      return normalizedSlash;
+    }
+
+    final fileName = path.basename(Uri.decodeFull(normalizedSlash));
+    if (fileName.isEmpty) return value;
+    return 'images/$fileName';
   }
 
   Future<void> _syncImage(String relativePath) async {
@@ -280,8 +337,8 @@ class SingleNoteSync {
       }
 
       final fileName = path.basename(trimmed);
-      final remotePath = 'benny/images/$fileName';
-      await _client.mkdirAll('benny/images');
+      final remotePath = '$_imagesRoot/$fileName';
+      await _client.mkdirAll(_imagesRoot);
       await _client.uploadFile(absolutePath, remotePath);
       print('Sync: 图片上传成功 $trimmed');
     } catch (e) {
@@ -291,12 +348,32 @@ class SingleNoteSync {
 
   String _getNoteRemotePath(String uuid) {
     final shard = UuidGenerator.getDirectoryShard(uuid);
-    return 'benny/notes/$shard/$uuid.json';
+    return '$_notesRoot/$shard/$uuid.json';
   }
 
   Future<void> _ensureRemoteDir(String uuid) async {
     final shard = UuidGenerator.getDirectoryShard(uuid);
-    await _client.mkdirAll('benny/notes/$shard');
+    await _client.mkdirAll('$_notesRoot/$shard');
+  }
+
+  /// 确保本次同步使用到的远端基础目录存在。
+  Future<void> ensureRemoteRoots() async {
+    if (_remoteRootsEnsured) return;
+    final roots = <String>[
+      'benny',
+      'benny/data',
+      _notesRoot,
+      _imagesRoot,
+      CategorySyncService.remoteDir,
+    ];
+    for (final dir in roots) {
+      try {
+        await _client.mkdirAll(dir);
+      } catch (e) {
+        throw Exception('无法创建远端目录 "$dir": $e');
+      }
+    }
+    _remoteRootsEnsured = true;
   }
 
   Future<void> _updateSyncStatus(

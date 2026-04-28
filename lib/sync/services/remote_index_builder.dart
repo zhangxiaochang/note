@@ -4,14 +4,14 @@ import '../models/remote_note_info.dart';
 import 'category_sync_service.dart';
 import 'sync_client_base.dart';
 
-/// 从 WebDAV（或任意 [SyncClientBase]）列举 `benny/` 下笔记、图片、分类索引文件，构建 [RemoteIndex]。
+/// 从 WebDAV（或任意 [SyncClientBase]）列举 `benny/data/` 下笔记、图片、分类索引文件，构建 [RemoteIndex]。
 ///
-/// 与 [Synchronizer] / 原 [IncrementalSync] 中笔记列举逻辑一致，并补充 `benny/images/` 与 [CategorySyncService.remotePath] 元数据。
+/// 与 [Synchronizer] / 原 [IncrementalSync] 中笔记列举逻辑一致，并补充 `benny/data/images/` 与 [CategorySyncService.remotePath] 元数据。
 class RemoteIndexBuilder {
   RemoteIndexBuilder._();
 
-  static const String _notesRoot = 'benny/notes';
-  static const String _imagesDir = 'benny/images';
+  static const String _notesRoot = 'benny/data/notes';
+  static const String _imagesDir = 'benny/data/images';
 
   static Future<RemoteIndex> build(SyncClientBase client) async {
     final notes = await _listNotes(client);
@@ -48,7 +48,6 @@ class RemoteIndexBuilder {
         }
       }
     } catch (e) {
-      // 与 Synchronizer 列举笔记一致：失败时返回已收集项，并打日志
       // ignore: avoid_print
       print('Sync: RemoteIndexBuilder 列举笔记失败: $e');
     }
