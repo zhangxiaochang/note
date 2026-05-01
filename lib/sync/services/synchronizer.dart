@@ -63,9 +63,6 @@ class Synchronizer {
 
   Future<SyncResult> run() async {
     try {
-      // ignore: avoid_print
-      print('Sync: 开始增量同步 (Synchronizer)');
-
       _progress?.setPhase(SyncPhase.preparing, message: '正在连接服务器…');
       await _client.ping();
       _ensureNotCancelled();
@@ -81,18 +78,12 @@ class Synchronizer {
       } catch (e) {
         await SyncItemDao.instance.markCategoryIndexFailure(e.toString());
         // 分类索引失败不阻断笔记/图片主流程，避免目录权限差异导致整轮同步不可用。
-        // ignore: avoid_print
-        print('Sync: 分类同步失败，继续笔记主流程: $e');
       }
       _ensureNotCancelled();
 
       final localNotes = await _getLocalNotesToSync();
-      // ignore: avoid_print
-      print('Sync: 本地笔记数量: ${localNotes.length}');
 
       final remoteNotes = await _getRemoteNotes();
-      // ignore: avoid_print
-      print('Sync: 远程笔记数量: ${remoteNotes.length}');
 
       _ensureNotCancelled();
 
@@ -114,9 +105,6 @@ class Synchronizer {
       _progress?.setPhase(SyncPhase.finalizing, message: '正在保存同步状态…');
       await _updateGlobalSyncState();
 
-      // ignore: avoid_print
-      print('Sync: 增量同步完成');
-
       if (syncErrors.isNotEmpty) {
         return SyncResult.failure(
           '部分笔记同步失败: ${syncErrors.join(', ')}',
@@ -128,8 +116,6 @@ class Synchronizer {
     } on SyncUserCancelled {
       return SyncResult.failure('同步已取消', SyncFailureType.unknown);
     } catch (e) {
-      // ignore: avoid_print
-      print('Sync: 增量同步失败: $e');
       final message = '$e';
       if (message.contains('Unauthorized') || message.contains('401')) {
         return SyncResult.failure(
@@ -163,17 +149,11 @@ class Synchronizer {
       _ensureNotCancelled();
       if (!remoteNotes.containsKey(localNote.uuid)) {
         if (localNote.isDeleted) {
-          // ignore: avoid_print
-          print('Sync: 本地笔记已删除，跳过上传 ${localNote.uuid}');
           continue;
         }
-        // ignore: avoid_print
-        print('Sync: 新增笔记 ${localNote.uuid}');
         final result = await _singleNoteSync.syncNote(localNote.uuid);
         _bump(noteTitle: localNote.title);
         if (!result.isSuccess) {
-          // ignore: avoid_print
-          print('Sync: 笔记同步失败 ${localNote.uuid}: ${result.message}');
           errors.add('${localNote.uuid}: ${result.message}');
           await _recordNoteFailure(localNote.uuid, result.message);
         }
@@ -195,8 +175,6 @@ class Synchronizer {
 
         switch (resolution) {
           case ConflictResolution.useLocal:
-            // ignore: avoid_print
-            print('Sync: 本地版本较新，恢复笔记 ${localNote.uuid}');
             final result = await _singleNoteSync.syncNote(localNote.uuid, forceSync: true);
             if (!result.isSuccess) {
               errors.add('${localNote.uuid}: ${result.message}');
@@ -204,14 +182,10 @@ class Synchronizer {
             }
             break;
           case ConflictResolution.useRemote:
-            // ignore: avoid_print
-            print('Sync: 远程已删除，删除本地笔记 ${localNote.uuid}');
             await _deleteLocalNote(localNote.uuid);
             break;
           case ConflictResolution.noConflict:
             if (await _needsPairwiseSync(localNote, remoteNote)) {
-              // ignore: avoid_print
-              print('Sync: 修改笔记 ${localNote.uuid}');
               final result = await _singleNoteSync.syncNote(
                 localNote.uuid,
                 preloadedRemote: remoteNote,
@@ -237,13 +211,9 @@ class Synchronizer {
       if (localNote == null) {
         final remoteNote = await _downloadRemoteNote(remoteInfo.path);
         if (remoteNote != null && remoteNote.isDeleted) {
-          // ignore: avoid_print
-          print('Sync: 远程笔记已删除，跳过下载 $noteUuid');
           _bump(noteTitle: remoteNote.title);
           continue;
         }
-        // ignore: avoid_print
-        print('Sync: 下载新笔记 $noteUuid');
         await _downloadNewNote(remoteInfo);
         _bump(noteTitle: remoteNote?.title ?? noteUuid);
       }
@@ -260,8 +230,6 @@ class Synchronizer {
       _ensureNotCancelled();
       if (!remoteNotes.containsKey(localNote.uuid)) {
         if (localNote.isDeleted) {
-          // ignore: avoid_print
-          print('Sync: 清理本地已删除笔记 ${localNote.uuid}');
           await DB.instance.deletePermanently(localNote.uuid);
           _bump(noteTitle: localNote.title);
         }
@@ -309,12 +277,7 @@ class Synchronizer {
       if (fresh != null) {
         await SyncItemDao.instance.markNoteInSync(fresh);
       }
-
-      // ignore: avoid_print
-      print('Sync: 下载新笔记成功 ${note.uuid}');
     } catch (e) {
-      // ignore: avoid_print
-      print('Sync: 下载新笔记失败 ${remoteInfo.uuid}: $e');
       await _recordNoteFailure(remoteInfo.uuid, e.toString());
     }
   }
@@ -332,8 +295,6 @@ class Synchronizer {
       final noteMap = jsonDecode(content);
       return Note.fromMap(noteMap);
     } catch (e) {
-      // ignore: avoid_print
-      print('Sync: 下载远程笔记失败 $remotePath: $e');
       return null;
     }
   }
@@ -347,12 +308,8 @@ class Synchronizer {
     }
 
     if (localNote.updatedAt > (remoteNote.deletedAt ?? 0)) {
-      // ignore: avoid_print
-      print('Sync: 本地在远程删除后更新过，恢复笔记 ${localNote.uuid}');
       return ConflictResolution.useLocal;
     } else {
-      // ignore: avoid_print
-      print('Sync: 远程删除较新，应用删除 ${localNote.uuid}');
       return ConflictResolution.useRemote;
     }
   }
@@ -374,12 +331,7 @@ class Synchronizer {
       if (n != null) {
         await SyncItemDao.instance.markNoteInSync(n);
       }
-      // ignore: avoid_print
-      print('Sync: 本地笔记已标记删除 $uuid');
-    } catch (e) {
-      // ignore: avoid_print
-      print('Sync: 删除本地笔记失败 $uuid: $e');
-    }
+    } catch (_) {}
   }
 }
 

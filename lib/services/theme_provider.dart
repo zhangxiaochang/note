@@ -77,24 +77,24 @@ class ThemeProvider extends ChangeNotifier {
     return WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
   }
 
-  // 主色 - Apple Notes 黄色风格
-  static const Color primaryColor = Color(0xFFFFB800);  // 金色/黄色
-  static const Color primaryColorDark = Color(0xFFD4A017);  // 深金色
+  // 主色 - iOS 系统蓝
+  static const Color primaryColor = Color(0xFF0A84FF);
+  static const Color primaryColorDark = Color(0xFF409CFF);
   // 辅助色
   static const Color secondaryColor = Color(0xFF10B981);
-  // 强调色 - Apple Notes 黄色
-  static const Color accentColor = Color(0xFFFFB800);
-  // 背景色 - Apple Notes 风格
-  static const Color lightBackgroundColor = Color(0xFFFFFFFF);  // 纯白
-  static const Color darkBackgroundColor = Color(0xFF1C1C1E);  // Apple深色背景
+  // 强调色
+  static const Color accentColor = Color(0xFF0A84FF);
+  // 背景色 - iOS grouped 风格
+  static const Color lightBackgroundColor = Color(0xFFF2F2F7);
+  static const Color darkBackgroundColor = Color(0xFF000000);
   // 卡片色
-  static const Color lightCardColor = Color(0xFFFFFFFF);  // 纯白卡片
-  static const Color darkCardColor = Color(0xFF2C2C2E);   // Apple深色卡片
+  static const Color lightCardColor = Color(0xFFFFFFFF);
+  static const Color darkCardColor = Color(0xFF1C1C1E);
   // 文本色 - Apple Notes 风格
-  static const Color lightTextColor = Color(0xFF000000);      // 黑色
-  static const Color darkTextColor = Color(0xFFFFFFFF);       // 白色
-  static const Color lightSecondaryTextColor = Color(0xFF8E8E93);  // Apple灰色
-  static const Color darkSecondaryTextColor = Color(0xFF8E8E93);   // Apple灰色
+  static const Color lightTextColor = Color(0xFF000000);
+  static const Color darkTextColor = Color(0xFFFFFFFF);
+  static const Color lightSecondaryTextColor = Color(0xFF8E8E93);
+  static const Color darkSecondaryTextColor = Color(0xFF8E8E93);
   // 边框色
   static const Color lightBorderColor = Color(0xFFE5E5EA);
   static const Color darkBorderColor = Color(0xFF38383A);
@@ -135,7 +135,7 @@ class ThemeProvider extends ChangeNotifier {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
         ),
         elevation: 0,
       ),
@@ -174,7 +174,7 @@ class ThemeProvider extends ChangeNotifier {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
         ),
         elevation: 0,
       ),

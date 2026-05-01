@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../dao/db.dart';
 import '../../domain/category.dart';
 import '../../widgets/custom_snackbar.dart';
+import '../../widgets/apple_spring_card.dart';
 
 class CategoryManagePage extends StatefulWidget {
   const CategoryManagePage({super.key});
@@ -106,7 +107,10 @@ class _CategoryManagePageState extends State<CategoryManagePage> {
                   itemCount: _categories.length,
                   itemBuilder: (context, index) {
                     final category = _categories[index];
-                    return _buildCategoryItem(category, isDark);
+                    return AppleSpringCard(
+                      index: index,
+                      child: _buildCategoryItem(category, isDark),
+                    );
                   },
                 ),
     );

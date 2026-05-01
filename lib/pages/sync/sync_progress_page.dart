@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../dao/db.dart';
+import '../../services/theme_provider.dart';
 import '../../services/webdav_config_service.dart';
 import '../../sync/models/sync_progress.dart';
 import '../../sync/services/async_sync_service.dart';
@@ -133,20 +134,26 @@ class _SyncProgressPageState extends State<SyncProgressPage>
       return _buildLoadingPage();
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pageBg = isDark ? ThemeProvider.darkBackgroundColor : ThemeProvider.lightBackgroundColor;
+    final titleColor = isDark ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor;
+    final hintColor = isDark ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFEEF2FF), // 背景色
+      backgroundColor: pageBg,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Color(0xFF312E81)),
+          icon: Icon(Icons.close, color: titleColor),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
+        title: Text(
           '同步进度',
           style: TextStyle(
-            color: Color(0xFF312E81),
+            color: titleColor,
             fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
           ),
         ),
         bottom: PreferredSize(
@@ -159,7 +166,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11.5,
-                color: Colors.grey.shade700,
+                color: hintColor,
                 height: 1.35,
               ),
             ),
@@ -205,21 +212,21 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             if (_lastSession != null) ...[
-                              _buildLastSessionBanner(_lastSession!),
+                              _buildLastSessionBanner(context, _lastSession!),
                               SizedBox(height: _syncPageSectionGap(context)),
                             ],
-                            _buildMultiDeviceHint(),
+                            _buildMultiDeviceHint(context),
                             SizedBox(height: _syncPageSectionGap(context)),
-                            _buildLocalLibraryStats(),
+                            _buildLocalLibraryStats(context),
                             SizedBox(height: _syncPageSectionGap(context) + 4),
 
                             // 条形进度 + 实时本机/云端（避免圆环遮挡文字）
-                            _buildProgressSection(progress),
+                            _buildProgressSection(context, progress),
 
                             SizedBox(height: _syncPageSectionGap(context) + 8),
 
                             // 状态信息
-                            _buildStatusInfo(progress),
+                            _buildStatusInfo(context, progress),
 
                             if (progress.isCompleted && progress.resultSummary != null) ...[
                               SizedBox(height: _syncPageSectionGap(context)),
@@ -236,7 +243,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                       top: 8,
                       bottom: _syncPageBottomInset(context),
                     ),
-                    child: _buildActionButtons(progress),
+                    child: _buildActionButtons(context, progress),
                   ),
                 ],
               ),
@@ -246,6 +253,26 @@ class _SyncProgressPageState extends State<SyncProgressPage>
       ),
     );
   }
+
+  bool _isDark(BuildContext context) => Theme.of(context).brightness == Brightness.dark;
+
+  Color _pageBg(BuildContext context) =>
+      _isDark(context) ? ThemeProvider.darkBackgroundColor : ThemeProvider.lightBackgroundColor;
+
+  Color _cardBg(BuildContext context) =>
+      _isDark(context) ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor;
+
+  Color _border(BuildContext context) =>
+      _isDark(context) ? ThemeProvider.darkBorderColor : ThemeProvider.lightBorderColor;
+
+  Color _primaryText(BuildContext context) =>
+      _isDark(context) ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor;
+
+  Color _secondaryText(BuildContext context) =>
+      _isDark(context) ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor;
+
+  Color _mutedFill(BuildContext context) =>
+      _isDark(context) ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7);
 
   double _syncPageHorizontalPadding(BuildContext context) {
     final w = MediaQuery.sizeOf(context).width;
@@ -267,15 +294,15 @@ class _SyncProgressPageState extends State<SyncProgressPage>
     return extra;
   }
 
-  Widget _buildMultiDeviceHint() {
+  Widget _buildMultiDeviceHint(BuildContext context) {
     final isMobile = _isMobilePlatform();
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardBg(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFC7D2FE)),
+        border: Border.all(color: _border(context), width: 0.5),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -283,7 +310,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
           Icon(
             isMobile ? Icons.smartphone : Icons.laptop_mac,
             size: 20,
-            color: const Color(0xFF4F46E5),
+            color: ThemeProvider.primaryColor,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -294,7 +321,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
               style: TextStyle(
                 fontSize: 12,
                 height: 1.35,
-                color: Colors.grey.shade800,
+                color: _primaryText(context),
               ),
             ),
           ),
@@ -304,14 +331,14 @@ class _SyncProgressPageState extends State<SyncProgressPage>
   }
 
   /// 本机资料库规模（笔记条数与增量同步使用的本地集合一致：含已归档、不含回收站）
-  Widget _buildLocalLibraryStats() {
+  Widget _buildLocalLibraryStats(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardBg(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: _border(context), width: 0.5),
       ),
       child: _localStatsLoading
           ? Row(
@@ -321,13 +348,13 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                   height: 18,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.grey.shade400,
+                    color: _secondaryText(context),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Text(
                   '正在统计本机笔记与图片…',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 13, color: _secondaryText(context)),
                 ),
               ],
             )
@@ -336,14 +363,14 @@ class _SyncProgressPageState extends State<SyncProgressPage>
               children: [
                 Row(
                   children: [
-                    Icon(Icons.folder_open, size: 20, color: Colors.indigo.shade400),
+                    Icon(Icons.folder_open, size: 20, color: ThemeProvider.primaryColor),
                     const SizedBox(width: 8),
-                    const Text(
+                    Text(
                       '本机资料库',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF312E81),
+                        color: _primaryText(context),
                       ),
                     ),
                   ],
@@ -353,6 +380,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                   children: [
                     Expanded(
                       child: _localStatChip(
+                        context,
                         icon: Icons.article_outlined,
                         label: '笔记',
                         value: '${_localNoteCount ?? 0}',
@@ -362,6 +390,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                     const SizedBox(width: 10),
                     Expanded(
                       child: _localStatChip(
+                        context,
                         icon: Icons.image_outlined,
                         label: '图片',
                         value: '${_localImageCount ?? 0}',
@@ -377,7 +406,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                   style: TextStyle(
                     fontSize: 10,
                     height: 1.3,
-                    color: Colors.grey.shade600,
+                    color: _secondaryText(context),
                   ),
                 ),
               ],
@@ -385,7 +414,8 @@ class _SyncProgressPageState extends State<SyncProgressPage>
     );
   }
 
-  Widget _localStatChip({
+  Widget _localStatChip(
+    BuildContext context, {
     required IconData icon,
     required String label,
     required String value,
@@ -394,12 +424,12 @@ class _SyncProgressPageState extends State<SyncProgressPage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: _mutedFill(context),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: const Color(0xFF4F46E5)),
+          Icon(icon, size: 18, color: ThemeProvider.primaryColor),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -409,7 +439,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                   label,
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.grey.shade600,
+                    color: _secondaryText(context),
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -418,17 +448,17 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                     children: [
                       TextSpan(
                         text: value,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF312E81),
+                          color: _primaryText(context),
                         ),
                       ),
                       TextSpan(
                         text: unit,
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade700,
+                          color: _secondaryText(context),
                         ),
                       ),
                     ],
@@ -501,7 +531,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
     }
   }
 
-  Widget _buildLastSessionBanner(SyncUiLastSession s) {
+  Widget _buildLastSessionBanner(BuildContext context, SyncUiLastSession s) {
     final timeStr = DateFormat('MM-dd HH:mm').format(
       DateTime.fromMillisecondsSinceEpoch(s.lastSyncAtMs),
     );
@@ -530,10 +560,10 @@ class _SyncProgressPageState extends State<SyncProgressPage>
               children: [
                 Text(
                   '上次同步 · $timeStr',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
-                    color: Color(0xFF312E81),
+                    color: _primaryText(context),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -542,7 +572,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                   style: TextStyle(
                     fontSize: 12,
                     height: 1.3,
-                    color: Colors.grey.shade800,
+                    color: _secondaryText(context),
                   ),
                 ),
               ],
@@ -554,7 +584,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
   }
 
   /// 条形进度 + 实时数量（圆环与文字分层，避免遮挡）
-  Widget _buildProgressSection(SyncProgress progress) {
+  Widget _buildProgressSection(BuildContext context, SyncProgress progress) {
     return AnimatedBuilder(
       animation: _progressAnimationController,
       builder: (context, child) {
@@ -567,15 +597,9 @@ class _SyncProgressPageState extends State<SyncProgressPage>
           width: double.infinity,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF4F46E5).withValues(alpha: 0.08),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            color: _cardBg(context),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _border(context), width: 0.5),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -584,12 +608,12 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text(
+                  Text(
                     '整体进度',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF312E81),
+                      color: _primaryText(context),
                     ),
                   ),
                   Text(
@@ -598,10 +622,10 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                         : (progress.isCompleted
                             ? '100%'
                             : '${(animated * 100).round()}%'),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF312E81),
+                      color: ThemeProvider.primaryColor,
                     ),
                   ),
                 ],
@@ -612,8 +636,8 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                 child: LinearProgressIndicator(
                   value: manualWait ? 0 : (showDeterminate ? animated : null),
                   minHeight: 12,
-                  backgroundColor: Colors.grey.shade200,
-                  color: const Color(0xFF4F46E5),
+                  backgroundColor: _mutedFill(context),
+                  color: ThemeProvider.primaryColor,
                 ),
               ),
               const SizedBox(height: 18),
@@ -621,21 +645,25 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                 children: [
                   Expanded(
                     child: _buildLiveCountChip(
+                      context,
                       icon: _thisDeviceIcon(),
                       title: '本设备笔记',
                       value: progress.localNotesCount,
                       subtitle: _platformShortName(),
-                      color: const Color(0xFF4F46E5),
+                      color: ThemeProvider.primaryColor,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: _buildLiveCountChip(
+                      context,
                       icon: Icons.cloud_queue,
                       title: '云端笔记',
                       value: progress.remoteNotesCount,
                       subtitle: 'WebDAV',
-                      color: const Color(0xFF818CF8),
+                      color: _isDark(context)
+                          ? ThemeProvider.primaryColorDark
+                          : const Color(0xFF007AFF),
                     ),
                   ),
                 ],
@@ -649,7 +677,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.grey.shade700,
+                    color: _secondaryText(context),
                   ),
                 ),
               ),
@@ -660,7 +688,8 @@ class _SyncProgressPageState extends State<SyncProgressPage>
     );
   }
 
-  Widget _buildLiveCountChip({
+  Widget _buildLiveCountChip(
+    BuildContext context, {
     required IconData icon,
     required String title,
     required int value,
@@ -687,7 +716,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade800,
+                    color: _primaryText(context),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -708,7 +737,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
             subtitle,
             style: TextStyle(
               fontSize: 10,
-              color: Colors.grey.shade600,
+              color: _secondaryText(context),
             ),
           ),
         ],
@@ -717,42 +746,42 @@ class _SyncProgressPageState extends State<SyncProgressPage>
   }
 
   /// 状态信息
-  Widget _buildStatusInfo(SyncProgress progress) {
+  Widget _buildStatusInfo(BuildContext context, SyncProgress progress) {
     IconData phaseIcon;
     Color phaseColor;
 
     switch (progress.phase) {
       case SyncPhase.idle:
         phaseIcon = Icons.hourglass_empty;
-        phaseColor = Colors.grey;
+        phaseColor = _secondaryText(context);
         break;
       case SyncPhase.preparing:
         phaseIcon = Icons.link;
-        phaseColor = const Color(0xFF818CF8);
+        phaseColor = ThemeProvider.primaryColorDark;
         break;
       case SyncPhase.syncingNotes:
         phaseIcon = Icons.sync;
-        phaseColor = const Color(0xFF4F46E5);
+        phaseColor = ThemeProvider.primaryColor;
         break;
       case SyncPhase.finalizing:
         phaseIcon = Icons.save_alt;
-        phaseColor = const Color(0xFF6366F1);
+        phaseColor = ThemeProvider.primaryColorDark;
         break;
       case SyncPhase.uploading:
         phaseIcon = Icons.cloud_upload;
-        phaseColor = const Color(0xFF4F46E5);
+        phaseColor = ThemeProvider.primaryColor;
         break;
       case SyncPhase.downloading:
         phaseIcon = Icons.cloud_download;
-        phaseColor = const Color(0xFF22C55E);
+        phaseColor = ThemeProvider.secondaryColor;
         break;
       case SyncPhase.syncingImages:
         phaseIcon = Icons.image;
-        phaseColor = const Color(0xFF818CF8);
+        phaseColor = ThemeProvider.primaryColorDark;
         break;
       case SyncPhase.completed:
         phaseIcon = Icons.check_circle;
-        phaseColor = const Color(0xFF22C55E);
+        phaseColor = ThemeProvider.secondaryColor;
         break;
       case SyncPhase.error:
         phaseIcon = Icons.error;
@@ -763,9 +792,9 @@ class _SyncProgressPageState extends State<SyncProgressPage>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardBg(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade100),
+        border: Border.all(color: _border(context), width: 0.5),
       ),
       child: Column(
         children: [
@@ -790,7 +819,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
               '当前: ${progress.currentNoteTitle}',
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey.shade600,
+                color: _secondaryText(context),
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -859,7 +888,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
   }
 
   /// 操作按钮
-  Widget _buildActionButtons(SyncProgress progress) {
+  Widget _buildActionButtons(BuildContext context, SyncProgress progress) {
     if (_awaitingManualStart && _syncService != null) {
       return SizedBox(
         width: double.infinity,
@@ -871,7 +900,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
           icon: const Icon(Icons.play_arrow_rounded),
           label: const Text('开始同步'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF4F46E5),
+            backgroundColor: ThemeProvider.primaryColor,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
@@ -946,7 +975,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
               icon: const Icon(Icons.refresh),
               label: const Text('重试'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4F46E5),
+                backgroundColor: ThemeProvider.primaryColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -964,26 +993,28 @@ class _SyncProgressPageState extends State<SyncProgressPage>
 
   /// 加载中页面
   Widget _buildLoadingPage() {
+    final titleColor = _primaryText(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFEEF2FF),
+      backgroundColor: _pageBg(context),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Color(0xFF312E81)),
+          icon: Icon(Icons.close, color: titleColor),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
+        title: Text(
           '同步进度',
           style: TextStyle(
-            color: Color(0xFF312E81),
+            color: titleColor,
             fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
           ),
         ),
       ),
-      body: const Center(
+      body: Center(
         child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5)),
+          valueColor: const AlwaysStoppedAnimation<Color>(ThemeProvider.primaryColor),
         ),
       ),
     );
@@ -991,20 +1022,22 @@ class _SyncProgressPageState extends State<SyncProgressPage>
 
   /// 错误页面
   Widget _buildErrorPage() {
+    final titleColor = _primaryText(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFEEF2FF),
+      backgroundColor: _pageBg(context),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Color(0xFF312E81)),
+          icon: Icon(Icons.close, color: titleColor),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
+        title: Text(
           '同步进度',
           style: TextStyle(
-            color: Color(0xFF312E81),
+            color: titleColor,
             fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
           ),
         ),
       ),
@@ -1022,9 +1055,9 @@ class _SyncProgressPageState extends State<SyncProgressPage>
               const SizedBox(height: 16),
               Text(
                 _errorMessage!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
-                  color: Color(0xFF312E81),
+                  color: titleColor,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -1034,7 +1067,7 @@ class _SyncProgressPageState extends State<SyncProgressPage>
                 icon: const Icon(Icons.close),
                 label: const Text('关闭'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4F46E5),
+                  backgroundColor: ThemeProvider.primaryColor,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
                   shape: RoundedRectangleBorder(

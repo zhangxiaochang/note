@@ -76,7 +76,6 @@ class DB {
         await _backfillSyncItems(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        print('Upgrading DB from $oldVersion to $newVersion');
         // 从 v1 升级到 v2：添加 deltaContent 列
         if (oldVersion < 2) {
           // 检查并添加 deltaContent 列（幂等）
@@ -85,7 +84,6 @@ class DB {
 
           if (!hasDeltaColumn) {
             await db.execute('ALTER TABLE notes ADD COLUMN deltaContent TEXT');
-            print('✅ Added deltaContent column');
           }
           // 可选：为已有笔记初始化 deltaContent（用纯文本转 Delta）
           final rows = await db.query('notes');
@@ -111,7 +109,6 @@ class DB {
 
           if (!hasUpdatedAtColumn) {
             await db.execute('ALTER TABLE notes ADD COLUMN updatedAt INTEGER');
-            print('✅ Added updatedAt column');
           }
         }
         if (oldVersion < 4) {
@@ -121,7 +118,6 @@ class DB {
 
           if (!hasArchivedColumn) {
             await db.execute('ALTER TABLE notes ADD COLUMN archived INTEGER DEFAULT 0');
-            print('✅ Added archived column');
           }
         }
         if (oldVersion < 5) {
@@ -135,7 +131,6 @@ class DB {
               createdAt INTEGER NOT NULL
             )
           ''');
-          print('✅ Created categories table');
 
           // 2. 检查并添加 categoryId 列到 notes 表
           final columns = await db.rawQuery('PRAGMA table_info(notes)');
@@ -143,7 +138,6 @@ class DB {
 
           if (!hasCategoryIdColumn) {
             await db.execute('ALTER TABLE notes ADD COLUMN categoryId INTEGER');
-            print('✅ Added categoryId column to notes');
           }
         }
         if (oldVersion < 6) {
@@ -158,11 +152,9 @@ class DB {
 
           if (!hasIsDeletedColumn) {
             await db.execute('ALTER TABLE notes ADD COLUMN isDeleted INTEGER DEFAULT 0');
-            print('✅ Added isDeleted column to notes');
           }
           if (!hasDeletedAtColumn) {
             await db.execute('ALTER TABLE notes ADD COLUMN deletedAt INTEGER');
-            print('✅ Added deletedAt column to notes');
           }
         }
         if (oldVersion < 8) {
@@ -170,18 +162,15 @@ class DB {
           var catCols = await db.rawQuery('PRAGMA table_info(categories)');
           if (!catCols.any((row) => row['name'] == 'uuid')) {
             await db.execute('ALTER TABLE categories ADD COLUMN uuid TEXT');
-            print('✅ Added categories.uuid');
           }
           catCols = await db.rawQuery('PRAGMA table_info(categories)');
           if (!catCols.any((row) => row['name'] == 'updatedAt')) {
             await db.execute('ALTER TABLE categories ADD COLUMN updatedAt INTEGER');
-            print('✅ Added categories.updatedAt');
             await db.execute('UPDATE categories SET updatedAt = createdAt WHERE updatedAt IS NULL');
           }
           catCols = await db.rawQuery('PRAGMA table_info(categories)');
           if (!catCols.any((row) => row['name'] == 'isDeleted')) {
             await db.execute('ALTER TABLE categories ADD COLUMN isDeleted INTEGER DEFAULT 0');
-            print('✅ Added categories.isDeleted');
           }
           final cats = await db.query('categories');
           for (final row in cats) {
@@ -201,7 +190,6 @@ class DB {
           var noteCols = await db.rawQuery('PRAGMA table_info(notes)');
           if (!noteCols.any((row) => row['name'] == 'categoryUuid')) {
             await db.execute('ALTER TABLE notes ADD COLUMN categoryUuid TEXT');
-            print('✅ Added notes.categoryUuid');
           }
           await db.rawUpdate('''
             UPDATE notes
@@ -291,8 +279,6 @@ class DB {
 
   // 升级到 UUID 主键
   Future<void> _upgradeToUuid(Database db) async {
-    print('🔄 开始升级到 UUID 主键...');
-    
     // 1. 创建临时表
     await db.execute('''
       CREATE TABLE notes_new(
@@ -354,8 +340,6 @@ class DB {
         'sync_status': 'pending_upload',
       });
     }
-    
-    print('✅ 升级到 UUID 主键完成');
   }
 
   String _textToDeltaJson(String text) {
@@ -847,7 +831,6 @@ class DB {
     if (_db != null) {
       await _db!.close();
       _db = null;
-      print('DB: 数据库连接已关闭');
     }
   }
 
@@ -856,7 +839,6 @@ class DB {
   Future<void> reopen() async {
     if (_db == null) {
       _db = await _open();
-      print('DB: 数据库连接已重新打开');
     }
   }
 }

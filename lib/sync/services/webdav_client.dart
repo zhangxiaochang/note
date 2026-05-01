@@ -76,38 +76,6 @@ class WebdavClient extends SyncClientBase {
     return Uri.encodeFull(normalized);
   }
 
-  void _logWebdavError(String op, String remotePath, Object error) {
-    final normalized = _normalizePath(remotePath);
-    final fullUrl = '$_url$normalized';
-    if (error is DioException) {
-      final status = error.response?.statusCode;
-      final statusText = error.response?.statusMessage;
-      final body = error.response?.data?.toString();
-      final bodyShort = body == null
-          ? ''
-          : (body.length > 240 ? '${body.substring(0, 240)}...' : body);
-      // ignore: avoid_print
-      print(
-        'WebDAV[$op] 失败\n'
-        '  path: $remotePath\n'
-        '  normalized: $normalized\n'
-        '  url: $fullUrl\n'
-        '  status: $status $statusText\n'
-        '  message: ${error.message}\n'
-        '  body: $bodyShort',
-      );
-      return;
-    }
-    // ignore: avoid_print
-    print(
-      'WebDAV[$op] 失败\n'
-      '  path: $remotePath\n'
-      '  normalized: $normalized\n'
-      '  url: $fullUrl\n'
-      '  error: $error',
-    );
-  }
-
   @override
   String get protocolName => 'WebDAV';
 
@@ -177,7 +145,6 @@ class WebdavClient extends SyncClientBase {
     try {
       await _requireClient.mkdirAll(normalizedPath);
     } catch (e) {
-      _logWebdavError('mkdirAll', path, e);
       rethrow;
     }
   }
@@ -189,7 +156,6 @@ class WebdavClient extends SyncClientBase {
     try {
       files = await _requireClient.readDir(normalizedPath);
     } catch (e) {
-      _logWebdavError('readDir', path, e);
       rethrow;
     }
 
@@ -222,7 +188,6 @@ class WebdavClient extends SyncClientBase {
         mTime: file.mTime,
       );
     } catch (e) {
-      _logWebdavError('readProps', path, e);
       // 文件不存在或其他错误时返回 null
       return null;
     }
@@ -234,7 +199,6 @@ class WebdavClient extends SyncClientBase {
     try {
       await _requireClient.remove(normalizedPath);
     } catch (e) {
-      _logWebdavError('remove', path, e);
       rethrow;
     }
   }
@@ -275,7 +239,7 @@ class WebdavClient extends SyncClientBase {
       // 生成 Basic Auth 认证头
       final auth = base64Encode(utf8.encode('$_username:$_password'));
 
-      var response = await dio.put(
+      await dio.put(
         url,
         data: Stream.fromIterable([bytes]),
         options: Options(
@@ -291,10 +255,7 @@ class WebdavClient extends SyncClientBase {
           }
         },
       );
-      // ignore: avoid_print
-      print('WebDAV[uploadFile] 成功 path=$remotePath status=${response.statusCode}');
     } catch (e) {
-      _logWebdavError('uploadFile', remotePath, e);
       throw Exception('Upload failed: $e');
     }
     
@@ -320,7 +281,6 @@ class WebdavClient extends SyncClientBase {
     try {
       bytes = await _requireClient.read(normalizedRemotePath);
     } catch (e) {
-      _logWebdavError('downloadFile', remotePath, e);
       rethrow;
     }
 
@@ -353,7 +313,6 @@ class WebdavClient extends SyncClientBase {
     try {
       bytes = await _requireClient.read(normalizedPath);
     } catch (e) {
-      _logWebdavError('downloadString', path, e);
       rethrow;
     }
     return utf8.decode(bytes);
@@ -381,7 +340,6 @@ class WebdavClient extends SyncClientBase {
         ),
       );
     } catch (e) {
-      _logWebdavError('uploadString', path, e);
       throw Exception('Upload string failed: $e');
     }
   }

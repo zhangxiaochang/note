@@ -115,14 +115,17 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
-        width: 360,
+        width: 400,
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 20,
+              color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.10),
+              blurRadius: 24,
               offset: const Offset(0, 10),
             ),
           ],
@@ -132,21 +135,50 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
           children: [
             // 标题
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 14),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.cloud_sync_outlined,
-                    color: Colors.blue,
-                    size: 28,
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4F46E5).withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.cloud_sync_outlined,
+                      color: Color(0xFF4F46E5),
+                      size: 24,
+                    ),
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    'WebDAV 配置',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : Colors.black87,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'WebDAV 配置',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
+                      ),
+                      Text(
+                        '用于多端数据同步',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? const Color(0xFF8E8E93) : const Color(0xFF8E8E93),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => Navigator.of(context).pop(false),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: isDark ? Colors.white70 : Colors.black54,
                     ),
                   ),
                 ],
@@ -160,7 +192,7 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
                 child: CircularProgressIndicator(),
               )
             else
-              Padding(
+                  Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   children: [
@@ -170,6 +202,7 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
                       label: 'WebDAV 地址',
                       hint: 'https://example.com/webdav',
                       icon: Icons.link,
+                      isDark: isDark,
                     ),
                     const SizedBox(height: 16),
 
@@ -179,6 +212,7 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
                       label: '用户名',
                       hint: '请输入用户名',
                       icon: Icons.person_outline,
+                      isDark: isDark,
                     ),
                     const SizedBox(height: 16),
 
@@ -189,45 +223,61 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
                       hint: '请输入密码',
                       icon: Icons.lock_outline,
                       isPassword: true,
+                      isDark: isDark,
                     ),
 
                     // 测试结果提示
                     if (_testResult != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              _testResult == '连接成功'
-                                  ? Icons.check_circle
-                                  : Icons.error,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: _testResult == '连接成功'
+                                ? const Color(0xFFDCFCE7)
+                                : const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
                               color: _testResult == '连接成功'
-                                  ? Colors.green
-                                  : Colors.red,
-                              size: 16,
+                                  ? const Color(0xFF86EFAC)
+                                  : const Color(0xFFFECACA),
                             ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                _testResult!,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: _testResult == '连接成功'
-                                      ? Colors.green
-                                      : Colors.red,
-                                ),
-                                softWrap: true,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                _testResult == '连接成功'
+                                    ? Icons.check_circle
+                                    : Icons.error,
+                                color: _testResult == '连接成功'
+                                    ? const Color(0xFF16A34A)
+                                    : const Color(0xFFDC2626),
+                                size: 16,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  _testResult!,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: _testResult == '连接成功'
+                                        ? const Color(0xFF15803D)
+                                        : const Color(0xFFB91C1C),
+                                  ),
+                                  softWrap: true,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                   ],
                 ),
               ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
             // 按钮区域
             Padding(
@@ -239,11 +289,16 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
                     child: OutlinedButton(
                       onPressed: _isTesting ? null : _testConnection,
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.blue,
-                        side: const BorderSide(color: Colors.blue),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        foregroundColor: const Color(0xFF4F46E5),
+                        side: BorderSide(
+                          color: isDark ? const Color(0xFF3A3A3C) : const Color(0xFFD1D1D6),
+                        ),
+                        backgroundColor: isDark
+                            ? const Color(0xFF2C2C2E)
+                            : const Color(0xFFF2F2F7),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: _isTesting
@@ -252,7 +307,7 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation(Colors.blue),
+                                valueColor: AlwaysStoppedAnimation(Color(0xFF4F46E5)),
                               ),
                             )
                           : const Text('测试连接'),
@@ -264,11 +319,12 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
                     child: ElevatedButton(
                       onPressed: _saveConfig,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
+                        backgroundColor: const Color(0xFF0A84FF),
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text('保存'),
@@ -288,19 +344,18 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
     required String label,
     required String hint,
     required IconData icon,
+    required bool isDark,
     bool isPassword = false,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 12,
             fontWeight: FontWeight.w500,
-            color: isDark ? Colors.white70 : Colors.black54,
+            color: isDark ? const Color(0xFF8E8E93) : const Color(0xFF8E8E93),
           ),
         ),
         const SizedBox(height: 6),
@@ -309,32 +364,34 @@ class _WebDAVConfigDialogState extends State<WebDAVConfigDialog> {
           obscureText: isPassword,
           style: TextStyle(
             fontSize: 15,
-            color: isDark ? Colors.white : Colors.black87,
+            color: isDark ? Colors.white : const Color(0xFF111827),
           ),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(
               fontSize: 14,
-              color: isDark ? Colors.white38 : Colors.black38,
+              color: isDark ? Colors.white38 : const Color(0xFF8E8E93),
             ),
             prefixIcon: Icon(
               icon,
-              size: 20,
-              color: isDark ? Colors.white54 : Colors.black45,
+              size: 18,
+              color: isDark ? const Color(0xFF8E8E93) : const Color(0xFF8E8E93),
             ),
             filled: true,
-            fillColor: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade50,
+            fillColor: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: isDark ? Colors.white12 : const Color(0xFFE5E7EB),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Colors.blue, width: 1.5),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 12,

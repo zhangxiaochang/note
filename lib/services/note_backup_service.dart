@@ -58,8 +58,8 @@ class NoteBackupService {
           conflictAlgorithm: ConflictAlgorithm.ignore,
         );
         importedCount++;
-      } catch (e) {
-        print('跳过无效笔记条目: $item, 错误: $e');
+      } catch (_) {
+        // skip invalid entry
       }
     }
     return importedCount;

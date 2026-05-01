@@ -51,7 +51,7 @@ class App extends StatelessWidget {
     final themeProvider = context.watch<ThemeProvider>();
 
     return MaterialApp(
-      title: '笔记',
+      title: 'Benny',
       debugShowCheckedModeBanner: false,
       scrollBehavior: const AppScrollBehavior(),
       themeMode: themeProvider.flutterThemeMode,

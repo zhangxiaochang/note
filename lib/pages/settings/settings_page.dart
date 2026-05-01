@@ -8,6 +8,7 @@ import '../../services/theme_provider.dart';
 import '../../utils/storage_location_prefs.dart';
 import '../sync/sync_progress_page.dart';
 import '../../utils/storage_analyzer_page.dart';
+import '../../widgets/custom_snackbar.dart';
 import 'webdav_config_dialog.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -76,13 +77,16 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
       setState(() {
         _storagePath = path;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已保存目录并创建 benny/config、benny/data/db、benny/data/images：$path；建议重启应用后继续使用。')),
+      CustomSnackBar.showSuccess(
+        context,
+        message:
+            '已保存目录并创建 benny/config、benny/data/db、benny/data/images：$path；建议重启应用后继续使用。',
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('目录不可写，请重新选择：$e')),
+      CustomSnackBar.showWarning(
+        context,
+        message: '目录不可写，请重新选择：$e',
       );
     }
   }
@@ -124,7 +128,7 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
                         context: context,
                         isDark: isDark,
                         icon: _getThemeModeIcon(themeProvider.themeMode),
-                        iconColor: Colors.orange,
+                        iconColor: ThemeProvider.primaryColor,
                         title: '主题',
                         subtitle: _getThemeModeText(themeProvider.themeMode),
                         onTap: () {
@@ -136,7 +140,7 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
                         context: context,
                         isDark: isDark,
                         icon: themeProvider.isCardView ? Icons.grid_view_outlined : Icons.format_list_bulleted,
-                        iconColor: Colors.blue,
+                        iconColor: ThemeProvider.primaryColor,
                         title: '视图模式',
                         subtitle: themeProvider.isCardView ? '卡片视图' : '列表视图',
                         onTap: () {
@@ -162,7 +166,7 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
                         context: context,
                         isDark: isDark,
                         icon: Icons.folder_special_outlined,
-                        iconColor: Colors.deepOrange,
+                        iconColor: ThemeProvider.primaryColor,
                         title: '数据存储位置',
                         subtitle: _storageSubtitle(),
                         onTap: _pickStoragePath,
@@ -171,7 +175,7 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
                         context: context,
                         isDark: isDark,
                         icon: Icons.download_outlined,
-                        iconColor: Colors.green,
+                        iconColor: ThemeProvider.primaryColor,
                         title: '导出笔记',
                         subtitle: '备份数据到本地文件',
                         onTap: () => BackupActions.exportNotesWithDialog(context),
@@ -180,7 +184,7 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
                         context: context,
                         isDark: isDark,
                         icon: Icons.upload_outlined,
-                        iconColor: Colors.purple,
+                        iconColor: ThemeProvider.primaryColor,
                         title: '导入笔记',
                         subtitle: '从本地文件恢复数据',
                         onTap: () => BackupActions.importNotesWithDialog(context),
@@ -189,7 +193,7 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
                         context: context,
                         isDark: isDark,
                         icon: Icons.pie_chart_outline,
-                        iconColor: Colors.teal,
+                        iconColor: ThemeProvider.primaryColor,
                         title: '存储分析',
                         subtitle: '查看存储空间使用情况',
                         onTap: () {
@@ -216,7 +220,7 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
                         context: context,
                         isDark: isDark,
                         icon: Icons.settings_outlined,
-                        iconColor: Colors.indigo,
+                        iconColor: ThemeProvider.primaryColor,
                         title: 'WebDAV 配置',
                         subtitle: '配置云端同步服务器',
                         onTap: () => showWebDAVConfigDialog(context),
@@ -225,7 +229,7 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
                         context: context,
                         isDark: isDark,
                         icon: Icons.sync_alt,
-                        iconColor: const Color(0xFF4F46E5),
+                        iconColor: ThemeProvider.primaryColor,
                         title: '云端同步',
                         subtitle: '查看状态与上次结果；需要时再在页面内开始同步',
                         onTap: () {
@@ -323,19 +327,14 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
         Container(
           decoration: BoxDecoration(
             color: isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: isDark
-                    ? Colors.black.withValues(alpha: 0.2)
-                    : Colors.black.withValues(alpha: 0.04),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark ? ThemeProvider.darkBorderColor : ThemeProvider.lightBorderColor,
+              width: 0.5,
+            ),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             child: Column(
               children: children,
             ),
@@ -357,69 +356,85 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
     required VoidCallback onTap,
     bool isLast = false,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              // 图标容器
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      iconColor.withValues(alpha: isDark ? 0.25 : 0.15),
-                      iconColor.withValues(alpha: isDark ? 0.15 : 0.08),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  icon,
-                  color: iconColor,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 14),
-              // 文字内容
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: isDark ? Colors.white : Colors.black87,
+    final dividerColor =
+        isDark ? ThemeProvider.darkBorderColor.withValues(alpha: 0.75) : ThemeProvider.lightBorderColor;
+
+    return Column(
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: iconColor.withValues(alpha: isDark ? 0.22 : 0.14),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        icon,
+                        color: iconColor,
+                        size: 18,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDark ? Colors.white.withValues(alpha: 0.48) : Colors.black45,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w400,
+                            letterSpacing: -0.2,
+                            color: isDark ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.25,
+                            color: isDark
+                                ? ThemeProvider.darkSecondaryTextColor
+                                : ThemeProvider.lightSecondaryTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (trailing != null) ...[
+                    const SizedBox(width: 8),
+                    trailing,
+                  ] else ...[
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Icon(
+                        Icons.chevron_right_rounded,
+                        size: 22,
+                        color: isDark ? Colors.white38 : Colors.black26,
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
-              // 右侧内容
-              if (trailing != null) ...[
-                const SizedBox(width: 8),
-                trailing,
-              ],
-            ],
+            ),
           ),
         ),
-      ),
+        if (!isLast)
+          Divider(height: 0.5, thickness: 0.5, indent: 60, color: dividerColor),
+      ],
     );
   }
 

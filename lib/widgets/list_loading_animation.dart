@@ -24,11 +24,12 @@ class AnimationLimiter extends InheritedWidget {
 
 /// 列表加载动画类型
 enum ListAnimationType {
-  fade,       // 淡入
-  slideUp,    // 从下方滑入
-  slideLeft,  // 从左侧滑入
-  scale,      // 缩放
-  bounce,     // 弹跳
+  fade,         // 淡入
+  slideUp,      // 从下方滑入
+  slideLeft,    // 从左侧滑入
+  scale,        // 缩放
+  bounce,       // 弹跳
+  appleSpring,  // Apple 风格弹性回弹 (scale + slideUp + spring curve)
 }
 
 /// 列表动画配置
@@ -135,6 +136,23 @@ class _AnimatedListWrapperState extends State<AnimatedListWrapper>
       ]).animate(CurvedAnimation(
         parent: _controller,
         curve: Curves.easeOut,
+      ));
+    } else if (widget.config.type == ListAnimationType.appleSpring) {
+      // Apple spring: cubic-bezier(0.34, 1.56, 0.64, 1)
+      const appleSpring = Cubic(0.34, 1.56, 0.64, 1.0);
+      _scaleAnimation = Tween<double>(
+        begin: 0.85,
+        end: 1.0,
+      ).animate(CurvedAnimation(
+        parent: _controller,
+        curve: appleSpring,
+      ));
+      _slideAnimation = Tween<Offset>(
+        begin: const Offset(0, 0.12),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(
+        parent: _controller,
+        curve: appleSpring,
       ));
     }
   }

@@ -6,7 +6,9 @@ import '../../domain/category.dart';
 import '../../utils/confirm_dialog.dart';
 import '../../utils/page_routes.dart';
 import '../../widgets/custom_snackbar.dart';
+import '../../widgets/app_scroll_behavior.dart';
 import '../../widgets/list_loading_animation.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'dart:math' as math;
 
 import 'note_card.dart';
@@ -44,21 +46,6 @@ class _HomePageBodyState extends State<HomePageBody> {
 
   // 记录上一次的 refreshCount，用于判断是否需要播放动画
   int _lastRefreshCount = 0;
-
-  /// 列表左滑：同时只保留一行展开
-  String? _swipeOpenExclusiveUuid;
-
-  void _onSwipeExclusiveClaim(String uuid) {
-    if (_swipeOpenExclusiveUuid != uuid) {
-      setState(() => _swipeOpenExclusiveUuid = uuid);
-    }
-  }
-
-  void _onSwipeExclusiveRelease(String uuid) {
-    if (_swipeOpenExclusiveUuid == uuid) {
-      setState(() => _swipeOpenExclusiveUuid = null);
-    }
-  }
 
   @override
   void initState() {
@@ -364,9 +351,9 @@ class _HomePageBodyState extends State<HomePageBody> {
                 key: ValueKey('card_${note.uuid}_${widget.refreshCount}'),
                 index: index,
                 config: ListAnimationConfig(
-                  type: ListAnimationType.scale,
-                  duration: Duration(milliseconds: 400),
-                  delay: Duration(milliseconds: 80),
+                  type: ListAnimationType.appleSpring,
+                  duration: Duration(milliseconds: 500),
+                  delay: Duration(milliseconds: 60),
                 ),
                 child: NoteCard(
                   note: note,
@@ -412,17 +399,15 @@ class _HomePageBodyState extends State<HomePageBody> {
                 key: ValueKey('grid_list_${note.uuid}_${widget.refreshCount}'),
                 index: index,
                 config: ListAnimationConfig(
-                  type: ListAnimationType.scale,
-                  duration: Duration(milliseconds: 400),
-                  delay: Duration(milliseconds: 80),
+                  type: ListAnimationType.appleSpring,
+                  duration: Duration(milliseconds: 500),
+                  delay: Duration(milliseconds: 60),
                 ),
                 child: NoteListItem(
                     key: ValueKey(note.uuid),
                     note: note,
                     category: _getCategoryForNote(note),
-                    swipeOpenExclusiveUuid: _swipeOpenExclusiveUuid,
-                    onSwipeExclusiveClaim: _onSwipeExclusiveClaim,
-                    onSwipeExclusiveRelease: _onSwipeExclusiveRelease,
+                    slidableGroupTag: 'notes_home_list',
                     onTap: () {
                       Navigator.of(context)
                           .push<bool>(editPageRoute(note))
@@ -458,9 +443,7 @@ class _HomePageBodyState extends State<HomePageBody> {
                     key: ValueKey(note.uuid),
                     note: note,
                     category: _getCategoryForNote(note),
-                    swipeOpenExclusiveUuid: _swipeOpenExclusiveUuid,
-                    onSwipeExclusiveClaim: _onSwipeExclusiveClaim,
-                    onSwipeExclusiveRelease: _onSwipeExclusiveRelease,
+                    slidableGroupTag: 'notes_home_list',
                     onTap: () {
                       Navigator.of(context)
                           .push<bool>(editPageRoute(note))
@@ -482,15 +465,11 @@ class _HomePageBodyState extends State<HomePageBody> {
 
     return AnimationLimiter(
       animate: _shouldAnimate,
-      child: RefreshIndicator(
-        onRefresh: widget.onRefresh,
-        color: Theme.of(context).primaryColor,
-        backgroundColor: Theme.of(context).cardColor,
-        strokeWidth: 3,
-        displacement: 60,
-        edgeOffset: 10,
-        triggerMode: RefreshIndicatorTriggerMode.onEdge,
-        child: content,
+      child: ScrollConfiguration(
+        behavior: const NoteListScrollBehavior(),
+        child: SlidableAutoCloseBehavior(
+          child: content,
+        ),
       ),
     );
   }

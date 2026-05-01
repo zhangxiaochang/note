@@ -370,45 +370,35 @@ class _QuillEditorWidgetState extends State<QuillEditorWidget> {
     try {
       // 生成图片文件名（使用 UUID 占位符，实际会在保存时替换）
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(pickedFile.path)}';
-      print('InsertImage: 文件名 $fileName');
-      
+
       // 确保图片目录存在
       await ImagePathResolver.ensureImageDir();
       
       // 保存图片到本地
       final imageDir = await ImagePathResolver.getImageDir();
-      print('InsertImage: 图片目录 $imageDir');
-      
+
       final savedImage = File(path.join(imageDir, fileName));
-      print('InsertImage: 保存路径 ${savedImage.path}');
       
       // 检查源文件是否存在
       final sourceFile = File(pickedFile.path);
       if (!await sourceFile.exists()) {
-        print('InsertImage: 源文件不存在 ${pickedFile.path}');
         return;
       }
-      
+
       await sourceFile.copy(savedImage.path);
-      print('InsertImage: 图片保存成功');
       
       // 验证文件是否保存成功
       if (!await savedImage.exists()) {
-        print('InsertImage: 保存后文件不存在');
         return;
       }
       
       // 使用相对路径（存储和编辑器都用相对路径，显示时由 ImageEmbedBuilder 解析）
       final relativePath = 'images/$fileName';
-      print('InsertImage: 使用相对路径 $relativePath');
 
       final index = _controller.selection.baseOffset;
       final length = _controller.selection.extentOffset - index;
       _controller.replaceText(index, length, BlockEmbed.image(relativePath), null);
-      print('InsertImage: 图片插入编辑器成功');
-    } catch (e) {
-      print('InsertImage: 插入图片失败 $e');
-    }
+    } catch (_) {}
   }
 
   void _showFontSizeMenu(BuildContext context, Offset offset, Size size) {
@@ -885,7 +875,6 @@ class ImageEmbedBuilder extends EmbedBuilder {
   @override
   Widget build(BuildContext context, EmbedContext embedContext) {
     final imageUrl = embedContext.node.value.data?.toString().trim();
-    print('ImageEmbedBuilder: imageUrl="$imageUrl"');
     if (imageUrl == null || imageUrl.isEmpty) return const SizedBox.shrink();
 
     if (ImagePathResolver.isWebUrl(imageUrl)) {
@@ -894,7 +883,6 @@ class ImageEmbedBuilder extends EmbedBuilder {
         fit: BoxFit.contain,
         width: MediaQuery.of(context).size.width - 32,
         errorBuilder: (context, error, stackTrace) {
-          print('ImageEmbedBuilder: network load failed $imageUrl: $error');
           return _buildBrokenImage(context);
         },
       );
@@ -913,7 +901,6 @@ class ImageEmbedBuilder extends EmbedBuilder {
         final resolvedPath = snapshot.data!;
         final file = File(resolvedPath);
         if (!file.existsSync()) {
-          print('ImageEmbedBuilder: local file not found $resolvedPath');
           return _buildBrokenImage(context);
         }
 
@@ -922,7 +909,6 @@ class ImageEmbedBuilder extends EmbedBuilder {
           fit: BoxFit.contain,
           width: MediaQuery.of(context).size.width - 32,
           errorBuilder: (context, error, stackTrace) {
-            print('ImageEmbedBuilder: local load failed $resolvedPath: $error');
             return _buildBrokenImage(context);
           },
         );

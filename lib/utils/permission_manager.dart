@@ -8,10 +8,8 @@ class PermissionManager {
   static Future<bool> checkStoragePermission() async {
     try {
       final storageStatus = await Permission.storage.status;
-      print('存储权限状态: $storageStatus');
       return storageStatus.isGranted;
-    } catch (e) {
-      print('检查权限时出错: $e');
+    } catch (_) {
       return true;
     }
   }
@@ -21,16 +19,14 @@ class PermissionManager {
     try {
       // 申请 storage 权限
       final storageResult = await Permission.storage.request();
-      print('Storage 权限申请结果: $storageResult');
-      
+
       if (storageResult.isGranted) {
         return true;
       }
       
       // 如果 storage 被拒绝，返回 false
       return false;
-    } catch (e) {
-      print('申请权限时出错: $e');
+    } catch (_) {
       return false;
     }
   }

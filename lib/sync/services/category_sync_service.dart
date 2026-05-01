@@ -41,8 +41,8 @@ class CategorySyncService {
         if (c.uuid != null && c.uuid!.isNotEmpty) {
           out.add(c);
         }
-      } catch (err) {
-        print('Sync: 跳过损坏的分类项: $err');
+      } catch (_) {
+        // skip corrupt entry
       }
     }
     return out;
@@ -77,9 +77,7 @@ class CategorySyncService {
       } catch (e2) {
         if (e2 is StateError) rethrow;
         // isExist 也异常时，保守视为未读到远程数据
-        print('Sync: 检查分类文件是否存在时异常: $e2');
       }
-      print('Sync: 无远程 categories.json 或为空，使用仅本地合并: $e');
       remoteReadFailed = true;
     }
 
@@ -92,7 +90,6 @@ class CategorySyncService {
     final out = jsonEncode(merged.map((c) => c.toSyncJson()).toList());
     // 远程读取失败且本地也无分类时，不上传 []，避免误覆盖服务器
     if (merged.isEmpty && remoteReadFailed) {
-      print('Sync: 分类合并为空且未能确认远程状态，跳过上传 categories.json');
       return;
     }
     await client.uploadString(out, remotePath);

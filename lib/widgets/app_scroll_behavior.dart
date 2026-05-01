@@ -42,3 +42,30 @@ class AppScrollBehavior extends MaterialScrollBehavior {
         PointerDeviceKind.trackpad,
       };
 }
+
+/// 笔记/归档列表专用：桌面端 **不把鼠标拖动** 算作纵向滚动（请用滚轮），否则与行内 [Slidable] 横向手势抢竞技场。
+/// 触控笔、触控板、触摸屏拖动滚动仍可用。
+class NoteListScrollBehavior extends AppScrollBehavior {
+  const NoteListScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.trackpad,
+      };
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    switch (Theme.of(context).platform) {
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      case TargetPlatform.fuchsia:
+        return super.getScrollPhysics(context);
+      default:
+        return const ClampingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        );
+    }
+  }
+}

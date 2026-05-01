@@ -6,7 +6,7 @@ import '../../domain/category.dart';
 import '../../services/theme_provider.dart';
 import '../../services/webdav_config_service.dart';
 import '../../utils/page_routes.dart';
-import '../../sync/services/webdav_client.dart';
+import '../../widgets/custom_snackbar.dart';
 import '../category/category_manage_page.dart';
 import '../sync/sync_progress_page.dart';
 import 'home_page_body.dart';
@@ -82,12 +82,9 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
     // 检查 WebDAV 配置
     final config = await WebDAVConfigService.loadConfig();
     if (!config.isValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('请先配置 WebDAV 同步设置'),
-          duration: Duration(seconds: 3),
-          backgroundColor: Colors.orange,
-        ),
+      CustomSnackBar.showWarning(
+        context,
+        message: '请先配置 WebDAV 同步设置',
       );
       return;
     }
@@ -108,7 +105,6 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
   }
 
   Future<void> _loadData() async {
-    debugPrint('_loadData 被调用');
     setState(() => _isLoading = true);
     final categories = await DB.instance.queryAllCategories();
     final total = await DB.instance.getTotalActiveNoteCount();

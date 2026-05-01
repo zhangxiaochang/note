@@ -49,7 +49,6 @@ class SyncScheduler {
 
     _isRunning = true;
     _scheduleNextSync();
-    print('SyncScheduler: 自动同步已启动，间隔: $_interval');
   }
 
   /// 停止自动同步
@@ -57,7 +56,6 @@ class SyncScheduler {
     _syncTimer?.cancel();
     _syncTimer = null;
     _isRunning = false;
-    print('SyncScheduler: 自动同步已停止');
   }
 
   /// 立即执行同步
@@ -69,11 +67,9 @@ class SyncScheduler {
 
     // 检查是否应该同步
     if (!await _shouldSync()) {
-      print('SyncScheduler: 当前条件不适合同步');
       return;
     }
 
-    print('SyncScheduler: 开始执行同步');
     final result = await _syncService!.sync(direction);
 
     if (result.isSuccess) {
@@ -92,7 +88,6 @@ class SyncScheduler {
   void _scheduleNextSync() {
     _syncTimer?.cancel();
     _syncTimer = Timer(_interval, () => syncNow());
-    print('SyncScheduler: 下次同步时间: ${DateTime.now().add(_interval)}');
   }
 
   /// 检查是否应该同步
@@ -115,7 +110,6 @@ class SyncScheduler {
   /// 应用进入前台时触发同步
   void onAppResumed() {
     if (_autoSync) {
-      print('SyncScheduler: 应用进入前台，检查是否需要同步');
       syncNow();
     }
   }
@@ -123,7 +117,6 @@ class SyncScheduler {
   /// 应用进入后台时停止同步
   void onAppPaused() {
     // 可以选择在后台继续或暂停同步
-    print('SyncScheduler: 应用进入后台');
   }
 
   /// 是否正在运行
@@ -170,7 +163,6 @@ class SyncTriggerManager {
   /// 触发同步
   void trigger(SyncTrigger trigger) {
     if (_enabledTriggers[trigger] ?? false) {
-      print('SyncTrigger: 触发同步 - $trigger');
       _scheduler.syncNow();
     }
   }

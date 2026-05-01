@@ -133,8 +133,6 @@ class ConflictResolver {
       jsonEncode(details.remoteNote.toJsonMap()),
       remotePath,
     );
-
-    print('Sync: 创建冲突副本 ${details.localNote.uuid}');
   }
 
   /// 显示冲突解决对话框

@@ -8,7 +8,9 @@ import '../../services/theme_provider.dart';
 import '../../utils/confirm_dialog.dart';
 import '../../utils/page_routes.dart';
 import '../../widgets/custom_snackbar.dart';
+import '../../widgets/app_scroll_behavior.dart';
 import '../../widgets/list_loading_animation.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import '../note/note_card.dart';
 import '../note/note_list_item.dart';
 import 'dart:math' as math;
@@ -43,21 +45,6 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
   // 刷新计数器，用于触发动画
   int _refreshCount = 0;
 
-  /// 列表左滑：同时只保留一行展开
-  String? _swipeOpenExclusiveUuid;
-
-  void _onSwipeExclusiveClaim(String uuid) {
-    if (_swipeOpenExclusiveUuid != uuid) {
-      setState(() => _swipeOpenExclusiveUuid = uuid);
-    }
-  }
-
-  void _onSwipeExclusiveRelease(String uuid) {
-    if (_swipeOpenExclusiveUuid == uuid) {
-      setState(() => _swipeOpenExclusiveUuid = null);
-    }
-  }
-  
   // 分类按钮的 GlobalKey，用于定位下拉菜单
   final GlobalKey _categoryButtonKey = GlobalKey();
 
@@ -922,9 +909,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                 key: ValueKey(note.uuid),
                 note: note,
                 category: note.categoryId == null ? null : category,
-                swipeOpenExclusiveUuid: _swipeOpenExclusiveUuid,
-                onSwipeExclusiveClaim: _onSwipeExclusiveClaim,
-                onSwipeExclusiveRelease: _onSwipeExclusiveRelease,
+                slidableGroupTag: 'notes_archive_list',
                 onTap: () {
                   // 归档笔记以只读模式打开，且不能修改分类
                   Navigator.of(context).push(
@@ -963,9 +948,7 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                 key: ValueKey(note.uuid),
                 note: note,
                 category: note.categoryId == null ? null : category,
-                swipeOpenExclusiveUuid: _swipeOpenExclusiveUuid,
-                onSwipeExclusiveClaim: _onSwipeExclusiveClaim,
-                onSwipeExclusiveRelease: _onSwipeExclusiveRelease,
+                slidableGroupTag: 'notes_archive_list',
                 onTap: () {
                   // 归档笔记以只读模式打开，且不能修改分类
                   Navigator.of(context).push(
@@ -986,15 +969,11 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
 
     return AnimationLimiter(
       animate: _shouldAnimate,
-      child: RefreshIndicator(
-        onRefresh: _loadData,
-        color: Theme.of(context).primaryColor,
-        backgroundColor: Theme.of(context).cardColor,
-        strokeWidth: 3,
-        displacement: 60,
-        edgeOffset: 10,
-        triggerMode: RefreshIndicatorTriggerMode.onEdge,
-        child: content,
+      child: ScrollConfiguration(
+        behavior: const NoteListScrollBehavior(),
+        child: SlidableAutoCloseBehavior(
+          child: content,
+        ),
       ),
     );
   }

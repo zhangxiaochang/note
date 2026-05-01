@@ -56,31 +56,26 @@ class ImagePathResolver {
 
   static Future<String> toAbsolutePath(String relativePath) async {
     final source = relativePath.trim();
-    print('toAbsolutePath: 输入="$source"');
     if (source.isEmpty) return source;
 
     if (isWebUrl(source)) {
-      print('toAbsolutePath: 网络URL，直接返回');
       return source;
     }
     if (isFileUri(source)) {
       try {
         final result = Uri.parse(source).toFilePath(windows: Platform.isWindows);
-        print('toAbsolutePath: file URI转路径="$result"');
         return result;
       } catch (_) {
         return source;
       }
     }
     if (isLocalAbsolutePath(source)) {
-      print('toAbsolutePath: 本地绝对路径，直接返回');
       return _decodeIfNeeded(source);
     }
 
     final appDir = await getAppDir();
     final normalized = _normalizeStoredPath(source);
     final result = path.normalize(path.join(appDir.path, normalized));
-    print('toAbsolutePath: appDir="${appDir.path}", normalized="$normalized", result="$result"');
     return result;
   }
 
@@ -127,29 +122,24 @@ class ImagePathResolver {
 
   static Future<String> resolveImagePath(String imagePath) async {
     final source = imagePath.trim();
-    print('resolveImagePath: 输入="$source"');
     if (source.isEmpty) return source;
 
     if (isWebUrl(source)) {
-      print('resolveImagePath: 识别为网络URL');
       return source;
     }
     if (isFileUri(source)) {
       try {
         final result = Uri.parse(source).toFilePath(windows: Platform.isWindows);
-        print('resolveImagePath: file URI转路径="$result"');
         return result;
       } catch (_) {
         return source;
       }
     }
     if (isLocalAbsolutePath(source)) {
-      print('resolveImagePath: 识别为本地绝对路径');
       return _decodeIfNeeded(source);
     }
 
     final result = await toAbsolutePath(source);
-    print('resolveImagePath: 相对路径转绝对路径="$result"');
     return result;
   }
 }

@@ -40,8 +40,6 @@ class SingleNoteSync {
     bool forceSync = false,
   }) async {
     try {
-      print('Sync: 开始同步笔记 $noteUuid');
-
       final note = await DB.instance.queryNoteByUuid(noteUuid);
       if (note == null) {
         return SyncResult.failure('笔记不存在', SyncFailureType.unknown);
@@ -72,10 +70,8 @@ class SingleNoteSync {
         await _updateSyncStatus(noteUuid, 'synced', noteForHash: after);
       }
 
-      print('Sync: 笔记同步完成');
       return SyncResult.success('笔记同步成功');
     } catch (e) {
-      print('Sync: 笔记同步失败: $e');
       return SyncResult.failure('同步失败: $e', SyncFailureType.unknown);
     }
   }
@@ -112,8 +108,6 @@ class SingleNoteSync {
     final remotePath = _getNoteRemotePath(uuid);
     final remoteFile = await _client.readProps(remotePath);
     if (remoteFile == null) {
-      // ignore: avoid_print
-      print('Sync: 远程文件不存在，需要重新上传 $uuid');
       return true;
     }
     return false;
@@ -195,10 +189,8 @@ class SingleNoteSync {
       final toSend = normalizeNoteImageRefs(withCategory);
       final jsonContent = jsonEncode(toSend.toSyncWireJsonMap());
       await _client.uploadString(jsonContent, remotePath);
-      print('Sync: 笔记上传成功 ${note.uuid}');
       return SyncResult.success('笔记上传成功');
     } catch (e) {
-      print('Sync: 笔记上传失败: $e');
       return SyncResult.failure('上传失败: $e', SyncFailureType.networkError);
     }
   }
@@ -212,10 +204,8 @@ class SingleNoteSync {
         where: 'uuid = ?',
         whereArgs: [resolved.uuid],
       );
-      print('Sync: 笔记下载成功 ${resolved.uuid}');
       return SyncResult.success('笔记下载成功');
     } catch (e) {
-      print('Sync: 笔记下载失败: $e');
       return SyncResult.failure('下载失败: $e', SyncFailureType.unknown);
     }
   }
@@ -242,7 +232,6 @@ class SingleNoteSync {
       if (await localFile.exists()) {
         final len = await localFile.length();
         if (len > 0) {
-          print('Sync: 图片已存在，跳过下载 $trimmed');
           return;
         }
         await localFile.delete();
@@ -254,12 +243,8 @@ class SingleNoteSync {
       final fileName = path.basename(trimmed);
       final remotePath = '$_imagesRoot/$fileName';
 
-      print('Sync: 下载图片 $remotePath -> $absolutePath');
       await _client.downloadFile(remotePath, absolutePath);
-      print('Sync: 图片下载成功 $trimmed');
-    } catch (e) {
-      print('Sync: 图片下载失败 $trimmed: $e');
-    }
+    } catch (_) {}
   }
 
   Future<void> syncNoteImages(Note note) async {
@@ -332,7 +317,6 @@ class SingleNoteSync {
       }
       final imageFile = File(absolutePath);
       if (!await imageFile.exists()) {
-        print('Sync: 图片不存在 $trimmed');
         return;
       }
 
@@ -340,10 +324,7 @@ class SingleNoteSync {
       final remotePath = '$_imagesRoot/$fileName';
       await _client.mkdirAll(_imagesRoot);
       await _client.uploadFile(absolutePath, remotePath);
-      print('Sync: 图片上传成功 $trimmed');
-    } catch (e) {
-      print('Sync: 图片同步失败 $trimmed: $e');
-    }
+    } catch (_) {}
   }
 
   String _getNoteRemotePath(String uuid) {

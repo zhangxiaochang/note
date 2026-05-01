@@ -48,8 +48,7 @@ class RemoteIndexBuilder {
         }
       }
     } catch (e) {
-      // ignore: avoid_print
-      print('Sync: RemoteIndexBuilder 列举笔记失败: $e');
+      // 列举失败时返回已收集项，由上层同步逻辑感知。
     }
     return out;
   }
@@ -72,8 +71,7 @@ class RemoteIndexBuilder {
         );
       }
     } catch (e) {
-      // ignore: avoid_print
-      print('Sync: RemoteIndexBuilder 列举图片失败: $e');
+      // ignore
     }
     return out;
   }
@@ -82,8 +80,6 @@ class RemoteIndexBuilder {
     try {
       return client.readProps(CategorySyncService.remotePath);
     } catch (e) {
-      // ignore: avoid_print
-      print('Sync: RemoteIndexBuilder 读取分类文件属性失败: $e');
       return null;
     }
   }

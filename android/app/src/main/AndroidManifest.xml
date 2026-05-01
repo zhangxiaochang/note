@@ -16,7 +16,7 @@
         android:maxSdkVersion="32" />
     
     <application
-        android:label="note"
+        android:label="Benny"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
