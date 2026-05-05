@@ -11,6 +11,7 @@ import '../../utils/uuid_generator.dart';
 import '../../utils/image_path_resolver.dart';
 import '../models/sync_state.dart';
 import '../utils/conflict_resolver.dart';
+import '../utils/note_download_merge.dart';
 import '../utils/note_sync_hash.dart';
 import '../utils/note_wire_resolve.dart';
 import 'category_sync_service.dart';
@@ -54,6 +55,8 @@ class SingleNoteSync {
         await _handleConflict(conflict.localNote!, conflict.remoteNote!);
         final fresh = await DB.instance.queryNoteByUuid(noteUuid);
         if (fresh != null) {
+          // 与主路径一致：冲突合并/选用本地后仍需上传正文中的本地图片。
+          await syncNoteImages(fresh);
           await _updateSyncStatus(noteUuid, 'synced', noteForHash: fresh);
         }
         return SyncResult.success('冲突已解决');
@@ -197,7 +200,9 @@ class SingleNoteSync {
 
   Future<SyncResult> _downloadNote(Note remoteNote) async {
     try {
-      final resolved = normalizeNoteImageRefs(await resolveWireNoteForDb(remoteNote));
+      final existing = await DB.instance.queryNoteByUuid(remoteNote.uuid);
+      final merged = mergeRemoteDownloadWithLocal(existing, remoteNote);
+      final resolved = normalizeNoteImageRefs(await resolveWireNoteForDb(merged));
       await _downloadNoteImages(resolved);
       await DB.instance.update(
         resolved.toDbMap(),

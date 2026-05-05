@@ -7,6 +7,7 @@ import '../../domain/category.dart';
 import '../../services/theme_provider.dart';
 import '../../utils/confirm_dialog.dart';
 import '../../utils/page_routes.dart';
+import '../../utils/note_single_sync.dart';
 import '../../widgets/custom_snackbar.dart';
 import '../../widgets/app_scroll_behavior.dart';
 import '../../widgets/list_loading_animation.dart';
@@ -506,7 +507,38 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
   }
 
   List<PopupMenuItem<String>> _buildNoteMenu(BuildContext context, Note note) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return [
+      PopupMenuItem<String>(
+        value: 'sync',
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: const Color(0xFF26A69A).withValues(alpha: isDark ? 0.25 : 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.cloud_sync_rounded,
+                size: 18,
+                color: const Color(0xFF26A69A).withValues(alpha: 0.95),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '同步',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ],
+        ),
+      ),
       const PopupMenuItem<String>(
         value: 'restore',
         child: Row(
@@ -532,6 +564,9 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
 
   void _handleMenuSelected(BuildContext context, String value, Note note) {
     switch (value) {
+      case 'sync':
+        NoteSingleSyncRunner.run(context, note.uuid, onComplete: _loadData);
+        break;
       case 'restore':
         _restoreNote(context, note);
         break;
@@ -918,6 +953,11 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                 },
                 onSwipeRight: () => _unarchiveNote(context, note),
                 onDelete: () => _deleteNote(context, note),
+                onSingleSync: () => NoteSingleSyncRunner.run(
+                  context,
+                  note.uuid,
+                  onComplete: _loadData,
+                ),
                 rightSwipeIcon: Icons.unarchive,
                 rightSwipeLabel: '恢复',
                 tintColor: Colors.orange,
@@ -957,6 +997,11 @@ class _ArchivePageState extends State<ArchivePage> with SingleTickerProviderStat
                 },
                 onSwipeRight: () => _unarchiveNote(context, note),
                 onDelete: () => _deleteNote(context, note),
+                onSingleSync: () => NoteSingleSyncRunner.run(
+                  context,
+                  note.uuid,
+                  onComplete: _loadData,
+                ),
                 rightSwipeIcon: Icons.unarchive,
                 rightSwipeLabel: '恢复',
                 tintColor: Colors.orange,

@@ -18,23 +18,12 @@ class SettingsPage extends StatefulWidget {
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
+class _SettingsPageState extends State<SettingsPage> {
   String _storagePath = '未设置';
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 400),
-      vsync: this,
-    );
-    _fadeAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutCubic,
-    );
-    _animationController.forward();
     _loadStoragePath();
   }
 
@@ -79,8 +68,7 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
       });
       CustomSnackBar.showSuccess(
         context,
-        message:
-            '已保存目录并创建 benny/config、benny/data/db、benny/data/images：$path；建议重启应用后继续使用。',
+        message: '已保存目录并创建 benny/config、benny/data/db、benny/data/images：$path；建议重启应用后继续使用。',
       );
     } catch (e) {
       if (!mounted) return;
@@ -92,365 +80,164 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
   }
 
   @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final isDark = themeProvider.isDarkMode;
 
     return Scaffold(
-      backgroundColor: isDark ? ThemeProvider.darkBackgroundColor : ThemeProvider.lightBackgroundColor,
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: CustomScrollView(
-          slivers: [
-            // 页面标题
-            SliverToBoxAdapter(
-              child: _buildHeader(context, isDark),
-            ),
-            // 内容区域
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  // 外观设置组
-                  _buildSettingsGroup(
-                    context: context,
-                    isDark: isDark,
-                    title: '外观',
-                    icon: Icons.palette_outlined,
-                    children: [
-                      _buildSettingsTile(
-                        context: context,
-                        isDark: isDark,
-                        icon: _getThemeModeIcon(themeProvider.themeMode),
-                        iconColor: ThemeProvider.primaryColor,
-                        title: '主题',
-                        subtitle: _getThemeModeText(themeProvider.themeMode),
-                        onTap: () {
-                          final nextMode = _getNextThemeMode(themeProvider.themeMode);
-                          themeProvider.setThemeMode(nextMode);
-                        },
-                      ),
-                      _buildSettingsTile(
-                        context: context,
-                        isDark: isDark,
-                        icon: themeProvider.isCardView ? Icons.grid_view_outlined : Icons.format_list_bulleted,
-                        iconColor: ThemeProvider.primaryColor,
-                        title: '视图模式',
-                        subtitle: themeProvider.isCardView ? '卡片视图' : '列表视图',
-                        onTap: () {
-                          themeProvider.setViewMode(
-                            themeProvider.isCardView ? ViewModeOption.list : ViewModeOption.card,
-                          );
-                        },
-                        isLast: true,
-                      ),
-                    ],
-                  ),
+      backgroundColor: isDark
+          ? ThemeProvider.darkBackgroundColor
+          : ThemeProvider.lightBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: isDark
+            ? ThemeProvider.darkBackgroundColor
+            : ThemeProvider.lightBackgroundColor,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0.5,
+        title: const Text(
+          '设置',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.only(top: 8),
+        children: [
+          // ══════ 外观 ══════
+          _SectionHeader(title: '外观'),
+          _GroupCard(
+            children: [
+              _SettingsRow(
+                icon: _themeIcon(themeProvider.themeMode),
+                iconBg: const Color(0xFF007AFF),
+                title: '主题',
+                value: _themeText(themeProvider.themeMode),
+                onTap: () {
+                  final next = _nextTheme(themeProvider.themeMode);
+                  themeProvider.setThemeMode(next);
+                },
+              ),
+              _SettingsRow(
+                icon: themeProvider.isCardView
+                    ? Icons.grid_view_outlined
+                    : Icons.format_list_bulleted,
+                iconBg: const Color(0xFF34C759),
+                title: '视图模式',
+                value: themeProvider.isCardView ? '卡片' : '列表',
+                onTap: () {
+                  themeProvider.setViewMode(
+                    themeProvider.isCardView ? ViewModeOption.list : ViewModeOption.card,
+                  );
+                },
+                isLast: true,
+              ),
+            ],
+          ),
 
-                  const SizedBox(height: 20),
+          // ══════ 数据管理 ══════
+          _SectionHeader(title: '数据管理'),
+          _GroupCard(
+            children: [
+              _SettingsRow(
+                icon: Icons.folder_outlined,
+                iconBg: const Color(0xFFAF52DE),
+                title: '数据存储位置',
+                subtitle: _storageSubtitle(),
+                onTap: _pickStoragePath,
+              ),
+              _SettingsRow(
+                icon: Icons.download_outlined,
+                iconBg: const Color(0xFF007AFF),
+                title: '导出笔记',
+                subtitle: '备份数据到本地文件',
+                onTap: () => BackupActions.exportNotesWithDialog(context),
+              ),
+              _SettingsRow(
+                icon: Icons.upload_outlined,
+                iconBg: const Color(0xFF34C759),
+                title: '导入笔记',
+                subtitle: '从本地文件恢复数据',
+                onTap: () => BackupActions.importNotesWithDialog(context),
+              ),
+              _SettingsRow(
+                icon: Icons.pie_chart_outline,
+                iconBg: const Color(0xFFFF9500),
+                title: '存储分析',
+                subtitle: '查看存储空间使用情况',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => StorageAnalyzerPage()),
+                  );
+                },
+                isLast: true,
+              ),
+            ],
+          ),
 
-                  // 数据管理组
-                  _buildSettingsGroup(
-                    context: context,
-                    isDark: isDark,
-                    title: '数据管理',
-                    icon: Icons.folder_outlined,
-                    children: [
-                      _buildSettingsTile(
-                        context: context,
-                        isDark: isDark,
-                        icon: Icons.folder_special_outlined,
-                        iconColor: ThemeProvider.primaryColor,
-                        title: '数据存储位置',
-                        subtitle: _storageSubtitle(),
-                        onTap: _pickStoragePath,
-                      ),
-                      _buildSettingsTile(
-                        context: context,
-                        isDark: isDark,
-                        icon: Icons.download_outlined,
-                        iconColor: ThemeProvider.primaryColor,
-                        title: '导出笔记',
-                        subtitle: '备份数据到本地文件',
-                        onTap: () => BackupActions.exportNotesWithDialog(context),
-                      ),
-                      _buildSettingsTile(
-                        context: context,
-                        isDark: isDark,
-                        icon: Icons.upload_outlined,
-                        iconColor: ThemeProvider.primaryColor,
-                        title: '导入笔记',
-                        subtitle: '从本地文件恢复数据',
-                        onTap: () => BackupActions.importNotesWithDialog(context),
-                      ),
-                      _buildSettingsTile(
-                        context: context,
-                        isDark: isDark,
-                        icon: Icons.pie_chart_outline,
-                        iconColor: ThemeProvider.primaryColor,
-                        title: '存储分析',
-                        subtitle: '查看存储空间使用情况',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => StorageAnalyzerPage()),
-                          );
-                        },
-                        isLast: true,
-                      ),
-                    ],
-                  ),
+          // ══════ 云同步 ══════
+          _SectionHeader(title: '云同步'),
+          _GroupCard(
+            children: [
+              _SettingsRow(
+                icon: Icons.settings_outlined,
+                iconBg: const Color(0xFF007AFF),
+                title: 'WebDAV 配置',
+                subtitle: '配置云端同步服务器',
+                onTap: () => showWebDAVConfigDialog(context),
+              ),
+              _SettingsRow(
+                icon: Icons.sync,
+                iconBg: const Color(0xFF34C759),
+                title: '云端同步',
+                subtitle: '查看状态与上次结果',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SyncProgressPage(),
+                      fullscreenDialog: true,
+                    ),
+                  );
+                },
+                isLast: true,
+              ),
+            ],
+          ),
 
-                  const SizedBox(height: 20),
+          // ══════ 关于 ══════
+          _SectionHeader(title: '关于'),
+          _GroupCard(
+            children: [
+              _SettingsRow(
+                icon: Icons.info_outline,
+                iconBg: const Color(0xFF8E8E93),
+                title: '版本',
+                value: '1.0.0',
+                isLast: true,
+                showChevron: false,
+              ),
+            ],
+          ),
 
-                  // 云同步组
-                  _buildSettingsGroup(
-                    context: context,
-                    isDark: isDark,
-                    title: '云同步',
-                    icon: Icons.cloud_outlined,
-                    children: [
-                      _buildSettingsTile(
-                        context: context,
-                        isDark: isDark,
-                        icon: Icons.settings_outlined,
-                        iconColor: ThemeProvider.primaryColor,
-                        title: 'WebDAV 配置',
-                        subtitle: '配置云端同步服务器',
-                        onTap: () => showWebDAVConfigDialog(context),
-                      ),
-                      _buildSettingsTile(
-                        context: context,
-                        isDark: isDark,
-                        icon: Icons.sync_alt,
-                        iconColor: ThemeProvider.primaryColor,
-                        title: '云端同步',
-                        subtitle: '查看状态与上次结果；需要时再在页面内开始同步',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const SyncProgressPage(),
-                              fullscreenDialog: true,
-                            ),
-                          );
-                        },
-                        isLast: true,
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 40),
-                ]),
+          const SizedBox(height: 32),
+          Center(
+            child: Text(
+              'Benny · 数据在你手中',
+              style: TextStyle(
+                fontSize: 13,
+                color: ThemeProvider.lightSecondaryTextColor,
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // 构建页面头部
-  Widget _buildHeader(BuildContext context, bool isDark) {
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        MediaQuery.of(context).padding.top + 16,
-        20,
-        24,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '设置',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: isDark ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor,
-            ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            '自定义您的使用体验',
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? ThemeProvider.darkSecondaryTextColor : ThemeProvider.lightSecondaryTextColor,
-            ),
-          ),
+          const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  // 构建设置组
-  Widget _buildSettingsGroup({
-    required BuildContext context,
-    required bool isDark,
-    required String title,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 组标题
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 12),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: isDark ? Colors.white38 : Colors.black38,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white54 : Colors.black54,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-        // 卡片容器
-        Container(
-          decoration: BoxDecoration(
-            color: isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isDark ? ThemeProvider.darkBorderColor : ThemeProvider.lightBorderColor,
-              width: 0.5,
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Column(
-              children: children,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // 构建设置项
-  Widget _buildSettingsTile({
-    required BuildContext context,
-    required bool isDark,
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    Widget? trailing,
-    required VoidCallback onTap,
-    bool isLast = false,
-  }) {
-    final dividerColor =
-        isDark ? ThemeProvider.darkBorderColor.withValues(alpha: 0.75) : ThemeProvider.lightBorderColor;
-
-    return Column(
-      children: [
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: iconColor.withValues(alpha: isDark ? 0.22 : 0.14),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        icon,
-                        color: iconColor,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w400,
-                            letterSpacing: -0.2,
-                            color: isDark ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.25,
-                            color: isDark
-                                ? ThemeProvider.darkSecondaryTextColor
-                                : ThemeProvider.lightSecondaryTextColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (trailing != null) ...[
-                    const SizedBox(width: 8),
-                    trailing,
-                  ] else ...[
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Icon(
-                        Icons.chevron_right_rounded,
-                        size: 22,
-                        color: isDark ? Colors.white38 : Colors.black26,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-        if (!isLast)
-          Divider(height: 0.5, thickness: 0.5, indent: 60, color: dividerColor),
-      ],
-    );
-  }
-
-  // 主题相关方法
-  String _getThemeModeText(ThemeModeOption mode) {
-    switch (mode) {
-      case ThemeModeOption.light:
-        return '浅色模式';
-      case ThemeModeOption.dark:
-        return '深色模式';
-      case ThemeModeOption.system:
-        return '跟随系统';
-    }
-  }
-
-  IconData _getThemeModeIcon(ThemeModeOption mode) {
+  IconData _themeIcon(ThemeModeOption mode) {
     switch (mode) {
       case ThemeModeOption.light:
         return Icons.light_mode_outlined;
@@ -461,7 +248,18 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
     }
   }
 
-  ThemeModeOption _getNextThemeMode(ThemeModeOption current) {
+  String _themeText(ThemeModeOption mode) {
+    switch (mode) {
+      case ThemeModeOption.light:
+        return '浅色';
+      case ThemeModeOption.dark:
+        return '深色';
+      case ThemeModeOption.system:
+        return '跟随系统';
+    }
+  }
+
+  ThemeModeOption _nextTheme(ThemeModeOption current) {
     switch (current) {
       case ThemeModeOption.light:
         return ThemeModeOption.dark;
@@ -471,5 +269,174 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
         return ThemeModeOption.light;
     }
   }
+}
 
+// ═══════════════════════════════════════════
+// iOS-style widgets
+// ═══════════════════════════════════════════
+
+/// Section header — iOS small uppercase label
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 24, 16, 6),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w400,
+          color: Color(0xFF8E8E93),
+          letterSpacing: -0.1,
+        ),
+      ),
+    );
+  }
+}
+
+/// iOS inset grouped card — white/dark rounded container
+class _GroupCard extends StatelessWidget {
+  final List<Widget> children;
+  const _GroupCard({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark
+              ? ThemeProvider.darkCardColor
+              : ThemeProvider.lightCardColor,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(children: children),
+      ),
+    );
+  }
+}
+
+/// iOS settings row — icon square + title + subtitle + value/chevron
+class _SettingsRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconBg;
+  final String title;
+  final String? subtitle;
+  final String? value;
+  final VoidCallback? onTap;
+  final bool isLast;
+  final bool showChevron;
+
+  const _SettingsRow({
+    required this.icon,
+    required this.iconBg,
+    required this.title,
+    this.subtitle,
+    this.value,
+    this.onTap,
+    this.isLast = false,
+    this.showChevron = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final separatorColor = isDark
+        ? ThemeProvider.darkBorderColor.withValues(alpha: 0.5)
+        : ThemeProvider.lightBorderColor;
+
+    return Column(
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  // Icon square (iOS glyph style)
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: iconBg.withValues(alpha: isDark ? 0.22 : 0.14),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Icon(icon, color: iconBg, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  // Title + subtitle
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w400,
+                            letterSpacing: -0.2,
+                            color: isDark
+                                ? ThemeProvider.darkTextColor
+                                : ThemeProvider.lightTextColor,
+                          ),
+                        ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: 1),
+                          Text(
+                            subtitle!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.3,
+                              color: ThemeProvider.lightSecondaryTextColor,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  // Value text
+                  if (value != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Text(
+                        value!,
+                        style: TextStyle(
+                          fontSize: 17,
+                          color: ThemeProvider.lightSecondaryTextColor,
+                        ),
+                      ),
+                    ),
+                  // Chevron
+                  if (showChevron)
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 22,
+                      color: isDark
+                          ? const Color(0xFF545458)
+                          : const Color(0xFFC7C7CC),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (!isLast)
+          Divider(
+            height: 0,
+            thickness: 0.5,
+            indent: 58,
+            color: separatorColor,
+          ),
+      ],
+    );
+  }
 }

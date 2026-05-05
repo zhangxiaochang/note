@@ -4,6 +4,7 @@ import '../../dao/db.dart';
 import '../../domain/note.dart';
 import '../../domain/category.dart';
 import '../../utils/page_routes.dart';
+import '../../utils/note_single_sync.dart';
 import '../../widgets/custom_snackbar.dart';
 import 'note_card.dart';
 import 'dart:math' as math;
@@ -203,6 +204,36 @@ class _NoteListPageState extends State<NoteListPage> {
 
     return [
       PopupMenuItem<String>(
+        value: 'sync',
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: const Color(0xFF26A69A).withValues(alpha: isDark ? 0.25 : 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.cloud_sync_rounded,
+                size: 18,
+                color: const Color(0xFF26A69A).withValues(alpha: 0.95),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '同步',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ],
+        ),
+      ),
+      PopupMenuItem<String>(
         value: 'archive',
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
@@ -267,6 +298,9 @@ class _NoteListPageState extends State<NoteListPage> {
 
   void _handleMenuSelected(BuildContext context, String value, Note note) {
     switch (value) {
+      case 'sync':
+        NoteSingleSyncRunner.run(context, note.uuid, onComplete: _reload);
+        break;
       case 'archive':
         _archiveNote(context, note);
         break;

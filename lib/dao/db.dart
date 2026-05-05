@@ -28,7 +28,7 @@ class DB {
     // 3. 打开数据库（支持升级）
     return openDatabase(
       dbPath,
-      version: 9, // v9: sync_items（Joplin 式 item 状态，供后续 Synchronizer）
+      version: 10, // v10: sync_log（同步会话记录）
       onCreate: (db, version) async {
         // 创建笔记表（UUID 主键）
         await db.execute('''
@@ -74,6 +74,7 @@ class DB {
         ''');
         await _createSyncItemsTable(db);
         await _backfillSyncItems(db);
+        await _createSyncLogTable(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         // 从 v1 升级到 v2：添加 deltaContent 列
@@ -203,8 +204,25 @@ class DB {
           await _createSyncItemsTable(db);
           await _backfillSyncItems(db);
         }
+        if (oldVersion < 10) {
+          await _createSyncLogTable(db);
+        }
       },
     );
+  }
+
+  static Future<void> _createSyncLogTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sync_log(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at INTEGER NOT NULL,
+        ended_at INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        detail_json TEXT
+      )
+    ''');
   }
 
   static Future<void> _createSyncItemsTable(Database db) async {

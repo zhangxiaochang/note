@@ -182,7 +182,7 @@ class Synchronizer {
             }
             break;
           case ConflictResolution.useRemote:
-            await _deleteLocalNote(localNote.uuid);
+            await _applyRemoteTombstone(remoteNote);
             break;
           case ConflictResolution.noConflict:
             if (await _needsPairwiseSync(localNote, remoteNote)) {
@@ -314,20 +314,21 @@ class Synchronizer {
     }
   }
 
-  Future<void> _deleteLocalNote(String uuid) async {
+  /// 采用远端墓碑：时间与删除时刻与远端 JSON 对齐，避免各端「删除时间」不一致。
+  Future<void> _applyRemoteTombstone(Note remoteNote) async {
     try {
-      final now = DateTime.now().millisecondsSinceEpoch;
+      final deletedAt = remoteNote.deletedAt ?? remoteNote.updatedAt;
       await DB.instance.update(
         {
           'isDeleted': 1,
-          'deletedAt': now,
-          'updatedAt': now,
+          'deletedAt': deletedAt,
+          'updatedAt': remoteNote.updatedAt,
           'syncStatus': 'synced',
         },
         where: 'uuid = ?',
-        whereArgs: [uuid],
+        whereArgs: [remoteNote.uuid],
       );
-      final n = await DB.instance.queryNoteByUuid(uuid);
+      final n = await DB.instance.queryNoteByUuid(remoteNote.uuid);
       if (n != null) {
         await SyncItemDao.instance.markNoteInSync(n);
       }

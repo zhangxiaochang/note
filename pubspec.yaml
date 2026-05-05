@@ -126,6 +126,8 @@ msix_config:
 # flutter_launcher_icons — 自动生成所有平台图标
 flutter_launcher_icons:
   android: true
+  adaptive_icon_background: "#007aff"
+  adaptive_icon_foreground: "assets/icon/icon-1024.png"
   ios: true
   web:
     generate: true

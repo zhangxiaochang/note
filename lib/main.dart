@@ -8,6 +8,7 @@ import 'package:sqflite/sqflite.dart';
 import 'pages/setup/storage_bootstrap_gate.dart';
 import 'services/theme_provider.dart';
 import 'widgets/app_scroll_behavior.dart';
+import 'sync/services/sync_session_recovery.dart';
 
 // 👇 新增：平台判断导入
 import 'dart:io' show Platform;
@@ -16,11 +17,13 @@ void main() async {
   // 👇 必须加 await 和 WidgetsFlutterBinding
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 👇 仅在非移动端（Windows/macOS/Linux）启用 FFI
+  // 👇 仅在非移动端（Windows/macOS/Linux）启用 FFI（须早于写入本地库的恢复逻辑）
   if (!Platform.isAndroid && !Platform.isIOS) {
     sqfliteFfiInit(); // 初始化 FFI
     databaseFactory = databaseFactoryFfi;
   }
+
+  await SyncSessionRecovery.recoverAfterProcessRestart();
 
   // 👇 设置沉浸式状态栏
   SystemChrome.setSystemUIOverlayStyle(

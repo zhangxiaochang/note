@@ -7,7 +7,7 @@ import '../../domain/note.dart';
 import '../../services/theme_provider.dart';
 import '../../widgets/bouncy_slidable_controller.dart';
 
-/// 列表视图中的笔记项：左滑在右侧露出「归档 / 删除」（使用 flutter_slidable，避免与垂直列表手势冲突）。
+/// 列表视图中的笔记项：左滑在右侧露出「归档 / （可选）同步 / 删除」（flutter_slidable）。
 class NoteListItem extends StatefulWidget {
   final Note note;
   final Category? category;
@@ -17,6 +17,8 @@ class NoteListItem extends StatefulWidget {
   final VoidCallback? onDelete;
   final IconData? rightSwipeIcon;
   final String? rightSwipeLabel;
+  /// 若提供则左滑露出第三枚「同步」按钮（WebDAV 单条同步）。
+  final Future<void> Function()? onSingleSync;
 
   /// 与 [SlidableAutoCloseBehavior] 配合：同组同时只展开一行。
   final Object slidableGroupTag;
@@ -31,6 +33,7 @@ class NoteListItem extends StatefulWidget {
     this.onDelete,
     this.rightSwipeIcon,
     this.rightSwipeLabel,
+    this.onSingleSync,
     this.slidableGroupTag = 'note_slidable_default',
   });
 
@@ -44,8 +47,12 @@ class NoteListItemState extends State<NoteListItem>
   static const double _swipeSideMargin = 12.0;
   static const double _swipeIconGap = 10.0;
   static const double _swipeIconDiameter = 40.0;
-  static double get _swipeRevealPx =>
-      _swipeSideMargin * 2 + _swipeIconDiameter * 2 + _swipeIconGap;
+  double _swipeRevealPx() {
+    final n = widget.onSingleSync != null ? 3 : 2;
+    return _swipeSideMargin * 2 +
+        _swipeIconDiameter * n +
+        _swipeIconGap * (n - 1);
+  }
 
   late final BouncySlidableController _slidableController;
   late AnimationController _deleteController;
@@ -142,6 +149,7 @@ class NoteListItemState extends State<NoteListItem>
     final cardColor = isDark ? ThemeProvider.darkCardColor : ThemeProvider.lightCardColor;
 
     const archiveCircleColor = Color(0xFF2196F3);
+    const syncCircleColor = Color(0xFF26A69A);
     const deleteCircleColor = Color(0xFFEF5350);
     final primaryIcon = widget.rightSwipeIcon ?? Icons.drive_file_move_rtl;
 
@@ -263,7 +271,7 @@ class NoteListItemState extends State<NoteListItem>
         final itemW = itemConstraints.maxWidth;
         // 露出比例 = 固定像素总长 / 当前项宽度；尽量不设过高的下限，以免宽列多出一块-only-right 空白
         final extentRatio = itemW > 0
-            ? (_swipeRevealPx / itemW).clamp(0.07, 0.82)
+            ? (_swipeRevealPx() / itemW).clamp(0.07, 0.82)
             : 0.36;
 
         final content = Slidable(
@@ -318,6 +326,21 @@ class NoteListItemState extends State<NoteListItem>
                                     await _onArchive();
                                   },
                                 ),
+                                if (widget.onSingleSync != null) ...[
+                                  const SizedBox(width: _swipeIconGap),
+                                  _slidableCircle(
+                                    scale: scale,
+                                    icon: Icons.cloud_sync_rounded,
+                                    color: syncCircleColor,
+                                    semanticLabel: '同步',
+                                    tooltip: '同步到云端',
+                                    onTap: () async {
+                                      await slidable.close();
+                                      if (!mounted) return;
+                                      await widget.onSingleSync!.call();
+                                    },
+                                  ),
+                                ],
                                 const SizedBox(width: _swipeIconGap),
                                 _slidableCircle(
                                   scale: scale,
