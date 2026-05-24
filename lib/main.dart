@@ -1,41 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_localizations/flutter_localizations.dart';
+
 import 'pages/setup/storage_bootstrap_gate.dart';
 import 'services/theme_provider.dart';
-import 'widgets/app_scroll_behavior.dart';
+import 'services/database_init.dart';
+import 'services/system_ui_config.dart';
 import 'sync/services/sync_session_recovery.dart';
-
-// 👇 新增：平台判断导入
-import 'dart:io' show Platform;
+import 'widgets/app_scroll_behavior.dart';
 
 void main() async {
-  // 👇 必须加 await 和 WidgetsFlutterBinding
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 👇 仅在非移动端（Windows/macOS/Linux）启用 FFI（须早于写入本地库的恢复逻辑）
-  if (!Platform.isAndroid && !Platform.isIOS) {
-    sqfliteFfiInit(); // 初始化 FFI
-    databaseFactory = databaseFactoryFfi;
-  }
-
+  DatabaseInit.initForPlatform();
   await SyncSessionRecovery.recoverAfterProcessRestart();
-
-  // 👇 设置沉浸式状态栏
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarIconBrightness: Brightness.dark,
-    ),
-  );
-
-  // 👇 扩展到状态栏和导航栏
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemUI.configure();
 
   runApp(
     ChangeNotifierProvider(
@@ -59,7 +39,7 @@ class App extends StatelessWidget {
       themeMode: themeProvider.flutterThemeMode,
       theme: themeProvider.theme,
       home: const StorageBootstrapGate(),
-      localizationsDelegates: [
+      localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
