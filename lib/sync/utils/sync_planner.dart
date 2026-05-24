@@ -10,8 +10,9 @@ int plannedSyncOperationCount(
   int n = 0;
 
   for (final note in localNotes) {
+    // 含已删除：远端无文件时也要上传 tombstone，计入进度
     if (!remoteNotes.containsKey(note.uuid)) {
-      if (!note.isDeleted) n++;
+      n++;
     }
   }
   for (final note in localNotes) {
@@ -21,11 +22,6 @@ int plannedSyncOperationCount(
   }
   for (final uuid in remoteNotes.keys) {
     if (!localUuids.contains(uuid)) {
-      n++;
-    }
-  }
-  for (final note in localNotes) {
-    if (!remoteNotes.containsKey(note.uuid) && note.isDeleted) {
       n++;
     }
   }

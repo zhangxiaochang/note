@@ -11,7 +11,7 @@ import '../../utils/uuid_generator.dart';
 import '../../utils/image_path_resolver.dart';
 import '../models/sync_state.dart';
 import '../utils/conflict_resolver.dart';
-import '../utils/note_download_merge.dart';
+import '../utils/note_download_merge.dart' show mergeArchivedWhenLocalUploadWins, mergeRemoteDownloadWithLocal;
 import '../utils/note_sync_hash.dart';
 import '../utils/note_wire_resolve.dart';
 import 'category_sync_service.dart';
@@ -109,22 +109,23 @@ class SingleNoteSync {
   /// 有 [sync_items] 且为 clean 时：仍需确认远端存在（避免只有本地以为已同步）
   Future<bool> _remotePropsMissingForUpload(String uuid) async {
     final remotePath = _getNoteRemotePath(uuid);
-    final remoteFile = await _client.readProps(remotePath);
-    if (remoteFile == null) {
-      return true;
-    }
-    return false;
+    final body = await _client.tryDownloadStringOrNull(remotePath);
+    return body == null;
   }
 
   Future<SyncConflict> _detectConflict(Note note, {Note? preloadedRemote}) async {
     final remotePath = _getNoteRemotePath(note.uuid);
-    final remoteFile = await _client.readProps(remotePath);
-    if (remoteFile == null) {
-      return SyncConflict(false, null, null);
+    final remoteNote = preloadedRemote;
+    if (remoteNote == null) {
+      final remoteJson = await _client.tryDownloadStringOrNull(remotePath);
+      if (remoteJson == null) {
+        return SyncConflict(false, null, null);
+      }
+      final parsed = Note.fromMap(jsonDecode(remoteJson));
+      final hasConflict =
+          noteSyncContentHash(note) != noteSyncContentHash(parsed);
+      return SyncConflict(hasConflict, note, parsed);
     }
-
-    final remoteNote = preloadedRemote ??
-        Note.fromMap(jsonDecode(await _client.downloadString(remotePath)));
 
     final hasConflict =
         noteSyncContentHash(note) != noteSyncContentHash(remoteNote);
@@ -161,24 +162,30 @@ class SingleNoteSync {
 
   Future<SyncResult> _syncNote(Note note, {Note? preloadedRemote}) async {
     final remotePath = _getNoteRemotePath(note.uuid);
-    final remoteFile = await _client.readProps(remotePath);
-
-    if (remoteFile == null) {
-      return await _uploadNote(note);
+    final remoteNote = preloadedRemote;
+    if (remoteNote == null) {
+      final remoteJson = await _client.tryDownloadStringOrNull(remotePath);
+      if (remoteJson == null) {
+        return await _uploadNote(note);
+      }
+      return await _syncNoteWithRemote(
+        note,
+        Note.fromMap(jsonDecode(remoteJson)),
+      );
     }
+    return await _syncNoteWithRemote(note, remoteNote);
+  }
 
-    final remoteNote = preloadedRemote ??
-        Note.fromMap(jsonDecode(await _client.downloadString(remotePath)));
-
+  Future<SyncResult> _syncNoteWithRemote(Note note, Note remoteNote) async {
     if (note.updatedAt > remoteNote.updatedAt) {
-      return await _uploadNote(note);
+      return await _uploadNote(mergeArchivedWhenLocalUploadWins(note, remoteNote));
     }
     if (note.updatedAt < remoteNote.updatedAt) {
       return await _downloadNote(remoteNote);
     }
     // 时间戳相同：以内容指纹为准
     if (noteSyncContentHash(note) != noteSyncContentHash(remoteNote)) {
-      return await _uploadNote(note);
+      return await _uploadNote(mergeArchivedWhenLocalUploadWins(note, remoteNote));
     }
     return SyncResult.success('笔记已一致');
   }

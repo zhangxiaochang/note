@@ -66,6 +66,9 @@ class _FakeSyncClient implements SyncClientBase {
   Future<String> downloadString(String path) async => '';
 
   @override
+  Future<String?> tryDownloadStringOrNull(String path) async => null;
+
+  @override
   Future<void> downloadFile(
     String remotePath,
     String localPath, {

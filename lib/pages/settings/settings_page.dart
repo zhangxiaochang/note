@@ -97,9 +97,9 @@ class _SettingsPageState extends State<SettingsPage> {
         scrolledUnderElevation: 0.5,
         title: const Text(
           '设置',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
-        centerTitle: true,
+        centerTitle: false,
       ),
       body: ListView(
         padding: const EdgeInsets.only(top: 8),

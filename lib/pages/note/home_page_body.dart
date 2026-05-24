@@ -116,6 +116,7 @@ class _HomePageBodyState extends State<HomePageBody> {
     );
 
     if (confirmed == true) {
+      if (!context.mounted) return;
       await _deleteNote(context, note);
     }
   }

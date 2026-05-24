@@ -81,6 +81,7 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
   Future<void> _syncNotes() async {
     // 检查 WebDAV 配置
     final config = await WebDAVConfigService.loadConfig();
+    if (!mounted) return;
     if (!config.isValid) {
       CustomSnackBar.showWarning(
         context,
@@ -98,6 +99,7 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
       ),
     );
 
+    if (!mounted) return;
     // 若完成了一次同步流程并点「完成」返回，刷新列表
     if (result == true) {
       await _loadData();
@@ -105,7 +107,9 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
     final categories = await DB.instance.queryAllCategories();
     final total = await DB.instance.getTotalActiveNoteCount();
     final uncategorized = await DB.instance.getUncategorizedNoteCount();
@@ -118,6 +122,7 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
     // 缓存所有笔记
     final notes = await DB.instance.queryActive();
 
+    if (!mounted) return;
     setState(() {
       _categories = categories;
       _totalCount = total;
@@ -836,6 +841,7 @@ class _NotePagesState extends State<NotePages> with SingleTickerProviderStateMix
                                 );
                                 
                                 await DB.instance.insertCategory(category);
+                                if (!context.mounted) return;
                                 Navigator.pop(context);
                                 _loadData();
                               },

@@ -1,6 +1,7 @@
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
+
 import '../../services/theme_provider.dart';
 import '../archive/archive_page.dart';
 import '../note/notes_page.dart';
@@ -38,8 +39,7 @@ class _HomePageState extends State<HomePage> {
     final labelFontSize = lerp(10, 11.5);
     final pillRadius = lerp(14, 18);
     // 与 _buildNavItem 内边距一致：vertical 6*2 + 图标 + 间距 + 文字行高
-    final innerNavH =
-        12 + iconSize + 4 + labelFontSize * 1.15;
+    final innerNavH = 12 + iconSize + 4 + labelFontSize * 1.15;
     final barH = padV * 2 + innerNavH + 4;
     return _GlassBarMetrics(
       barWidth: barW,
@@ -54,15 +54,14 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final glass = AppGlassNavBarTheme.of(context);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final glassBottomReserve = 84.0 + bottomInset;
 
     final scaffold = Scaffold(
       extendBody: true,
-      backgroundColor: isDark
-          ? ThemeProvider.darkBackgroundColor
-          : ThemeProvider.lightBackgroundColor,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Padding(
         padding: EdgeInsets.only(bottom: glassBottomReserve),
         child: IndexedStack(
@@ -71,9 +70,9 @@ class _HomePageState extends State<HomePage> {
           children: pages,
         ),
       ),
-      bottomNavigationBar: _buildLiquidGlassBottomBar(context, isDark),
+      bottomNavigationBar: _buildLiquidGlassBottomBar(context, glass),
     );
-
+    // 左右滑动
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth >= _minLayoutWidth) {
@@ -81,16 +80,13 @@ class _HomePageState extends State<HomePage> {
         }
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: _minLayoutWidth,
-            child: scaffold,
-          ),
+          child: SizedBox(width: _minLayoutWidth, child: scaffold),
         );
       },
     );
   }
 
-  Widget _buildLiquidGlassBottomBar(BuildContext context, bool isDark) {
+  Widget _buildLiquidGlassBottomBar(BuildContext context, AppGlassNavBarTheme glass) {
     final bottomSafe = MediaQuery.paddingOf(context).bottom;
     final sw = MediaQuery.sizeOf(context).width;
     final m = _glassMetrics(sw);
@@ -110,96 +106,92 @@ class _HomePageState extends State<HomePage> {
             width: m.barWidth,
             height: m.barHeight,
             child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(999),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.42 : 0.08),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                  spreadRadius: -6,
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      width: 0.5,
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.18)
-                          : Colors.black.withValues(alpha: 0.06),
-                    ),
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.08)
-                        : Colors.white.withValues(alpha: 0.45),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                boxShadow: [
+                  BoxShadow(
+                    color: glass.barShadow,
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                    spreadRadius: -6,
                   ),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: m.horizontalPadding,
-                      vertical: m.verticalPadding,
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        width: 0.5,
+                        color: glass.barBorder,
+                      ),
+                      color: glass.barFill,
                     ),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final trackW = constraints.maxWidth;
-                        final segment = trackW / 3;
-                        return Stack(
-                          clipBehavior: Clip.none,
-                          alignment: Alignment.centerLeft,
-                          children: [
-                            Positioned(
-                              left: page * segment,
-                              top: 0,
-                              bottom: 0,
-                              width: segment,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  borderRadius:
-                                      BorderRadius.circular(m.pillRadius),
-                                  color: isDark
-                                      ? Colors.white.withValues(alpha: 0.14)
-                                      : Colors.black.withValues(alpha: 0.055),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: m.horizontalPadding,
+                        vertical: m.verticalPadding,
+                      ),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final trackW = constraints.maxWidth;
+                          final segment = trackW / 3;
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            alignment: Alignment.centerLeft,
+                            children: [
+                              Positioned(
+                                left: page * segment,
+                                top: 0,
+                                bottom: 0,
+                                width: segment,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(
+                                      m.pillRadius,
+                                    ),
+                                    color: glass.selectionPill,
+                                  ),
                                 ),
                               ),
-                            ),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildNavItem(
-                                    0,
-                                    Icons.description_outlined,
-                                    '笔记',
-                                    isDark,
-                                    m,
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildNavItem(
+                                      0,
+                                      Icons.description_outlined,
+                                      '笔记',
+                                      glass,
+                                      m,
+                                    ),
                                   ),
-                                ),
-                                Expanded(
-                                  child: _buildNavItem(
-                                    1,
-                                    Icons.archive_outlined,
-                                    '归档',
-                                    isDark,
-                                    m,
+                                  Expanded(
+                                    child: _buildNavItem(
+                                      1,
+                                      Icons.archive_outlined,
+                                      '归档',
+                                      glass,
+                                      m,
+                                    ),
                                   ),
-                                ),
-                                Expanded(
-                                  child: _buildNavItem(
-                                    2,
-                                    Icons.settings_outlined,
-                                    '设置',
-                                    isDark,
-                                    m,
+                                  Expanded(
+                                    child: _buildNavItem(
+                                      2,
+                                      Icons.settings_outlined,
+                                      '设置',
+                                      glass,
+                                      m,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        );
-                      },
+                                ],
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -208,7 +200,6 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-      ),
     );
   }
 
@@ -216,15 +207,12 @@ class _HomePageState extends State<HomePage> {
     int index,
     IconData icon,
     String label,
-    bool isDark,
+    AppGlassNavBarTheme glass,
     _GlassBarMetrics m,
   ) {
     final isSelected = index == _currentIndex;
-    final unselectedColor = isDark
-        ? ThemeProvider.darkSecondaryTextColor
-        : ThemeProvider.lightSecondaryTextColor;
-    final selectedColor =
-        isDark ? ThemeProvider.darkTextColor : ThemeProvider.lightTextColor;
+    final unselectedColor = glass.navUnselected;
+    final selectedColor = glass.navSelected;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -254,8 +242,7 @@ class _HomePageState extends State<HomePage> {
                     fontSize: m.labelFontSize,
                     height: 1.1,
                     letterSpacing: -0.12,
-                    fontWeight:
-                        isSelected ? FontWeight.w600 : FontWeight.w400,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                     color: isSelected ? selectedColor : unselectedColor,
                   ),
                 ),

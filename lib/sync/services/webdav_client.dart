@@ -319,6 +319,15 @@ class WebdavClient extends SyncClientBase {
   }
 
   @override
+  Future<String?> tryDownloadStringOrNull(String path) async {
+    try {
+      return await downloadString(path);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
   Future<void> uploadString(String content, String path) async {
     final normalizedPath = _normalizePath(path);
     final bytes = utf8.encode(content);

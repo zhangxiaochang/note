@@ -1,12 +1,30 @@
 import '../../domain/note.dart';
 
-/// 将远端拉取的笔记与本地合并，避免 **仅因时间戳较新** 覆盖掉本机已归档/已删除状态。
+/// 合并两条笔记的删除时间戳（任一侧已删除时选用较合理的 [deletedAt]）。
+int? mergeDeletedAtFields(Note a, Note b) {
+  if (!a.isDeleted && !b.isDeleted) return null;
+  if (a.isDeleted && !b.isDeleted) return a.deletedAt;
+  if (!a.isDeleted && b.isDeleted) return b.deletedAt;
+  final da = a.deletedAt ?? 0;
+  final db = b.deletedAt ?? 0;
+  if (da >= db) {
+    return a.deletedAt;
+  }
+  return b.deletedAt;
+}
+
+/// 本机胜出上传时合并归档：避免正文较新的一次保存把 **他端已归档** 误覆盖成未归档。
+Note mergeArchivedWhenLocalUploadWins(Note local, Note remote) {
+  return local.copyWith(archived: local.archived || remote.archived);
+}
+
+/// 将远端拉取的笔记与本地合并。
 ///
 /// 规则：
-/// - `remote.updatedAt > local.updatedAt`：以远端为准（允许远端「取消归档」等）。
-/// - 时间戳相同：正文等仍以远端为准，**归档 / 删除** 取「任一侧为真则保留」，
-///   `deletedAt` 取较晚的一条。
-/// - `local.updatedAt > remote.updatedAt`：不应进入典型下载路径；返回 [local] 以免丢数据。
+/// - `remote.updatedAt > local.updatedAt`：整笔记以远端为准（含 `archived`），保证
+///   他端「归档 / 取消归档」能随较新的 [updatedAt] 下发。
+/// - `updatedAt` 相同：归档与删除取「任一侧为真」，[deletedAt] 取较晚一条。
+/// - `local.updatedAt > remote.updatedAt`：返回 [local]（典型路径不应下载）。
 Note mergeRemoteDownloadWithLocal(Note? local, Note remote) {
   if (local == null) return remote;
 
@@ -20,9 +38,8 @@ Note mergeRemoteDownloadWithLocal(Note? local, Note remote) {
   // updatedAt 相同：合并归档与删除语义，避免同一毫秒内的竞态丢状态
   final mergedArchived = local.archived || remote.archived;
   final mergedIsDeleted = local.isDeleted || remote.isDeleted;
-  final mergedDeletedAt = mergedIsDeleted
-      ? _mergeDeletedAt(local, remote)
-      : null;
+  final mergedDeletedAt =
+      mergedIsDeleted ? mergeDeletedAtFields(local, remote) : null;
   return Note(
     uuid: remote.uuid,
     title: remote.title,
@@ -37,16 +54,4 @@ Note mergeRemoteDownloadWithLocal(Note? local, Note remote) {
     isDeleted: mergedIsDeleted,
     deletedAt: mergedDeletedAt,
   );
-}
-
-int? _mergeDeletedAt(Note a, Note b) {
-  if (!a.isDeleted && !b.isDeleted) return null;
-  if (a.isDeleted && !b.isDeleted) return a.deletedAt;
-  if (!a.isDeleted && b.isDeleted) return b.deletedAt;
-  final da = a.deletedAt ?? 0;
-  final db = b.deletedAt ?? 0;
-  if (da >= db) {
-    return a.deletedAt;
-  }
-  return b.deletedAt;
 }

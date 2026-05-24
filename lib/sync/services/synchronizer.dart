@@ -23,7 +23,7 @@ class SyncUserCancelled implements Exception {
   SyncUserCancelled();
 }
 
-/// 统一同步入口：分类 → 列索引 → 按条笔记与删除清理 → 全局 [sync_meta]；并回写 [sync_items]。
+/// 统一同步入口：分类 → 列索引 → 按条笔记（含墓碑上传）→ 全局 [sync_meta]；并回写 [sync_items]。
 class Synchronizer {
   Synchronizer(
     this._client, {
@@ -99,9 +99,6 @@ class Synchronizer {
       final syncErrors = await _syncChangedNotes(localNotes, remoteNotes);
       _ensureNotCancelled();
 
-      await _syncDeletedNotes(localNotes, remoteNotes);
-      _ensureNotCancelled();
-
       _progress?.setPhase(SyncPhase.finalizing, message: '正在保存同步状态…');
       await _updateGlobalSyncState();
 
@@ -148,9 +145,7 @@ class Synchronizer {
     for (final localNote in localNotes) {
       _ensureNotCancelled();
       if (!remoteNotes.containsKey(localNote.uuid)) {
-        if (localNote.isDeleted) {
-          continue;
-        }
+        // 已删除笔记也必须上传 tombstone（isDeleted/deletedAt），否则他端永远收不到删除。
         final result = await _singleNoteSync.syncNote(localNote.uuid);
         _bump(noteTitle: localNote.title);
         if (!result.isSuccess) {
@@ -220,21 +215,6 @@ class Synchronizer {
     }
 
     return errors;
-  }
-
-  Future<void> _syncDeletedNotes(
-    List<Note> localNotes,
-    Map<String, RemoteNoteInfo> remoteNotes,
-  ) async {
-    for (final localNote in localNotes) {
-      _ensureNotCancelled();
-      if (!remoteNotes.containsKey(localNote.uuid)) {
-        if (localNote.isDeleted) {
-          await DB.instance.deletePermanently(localNote.uuid);
-          _bump(noteTitle: localNote.title);
-        }
-      }
-    }
   }
 
   /// 双端均有 JSON 时：以 [sync_items] + 内容指纹决定是否需要 `syncNote`
@@ -307,11 +287,12 @@ class Synchronizer {
       return ConflictResolution.noConflict;
     }
 
-    if (localNote.updatedAt > (remoteNote.deletedAt ?? 0)) {
+    final remoteTombstoneAt =
+        remoteNote.deletedAt ?? remoteNote.updatedAt;
+    if (localNote.updatedAt > remoteTombstoneAt) {
       return ConflictResolution.useLocal;
-    } else {
-      return ConflictResolution.useRemote;
     }
+    return ConflictResolution.useRemote;
   }
 
   /// 采用远端墓碑：时间与删除时刻与远端 JSON 对齐，避免各端「删除时间」不一致。

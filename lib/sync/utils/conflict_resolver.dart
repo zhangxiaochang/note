@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../domain/note.dart';
+import 'note_download_merge.dart' show mergeArchivedWhenLocalUploadWins, mergeDeletedAtFields;
 import 'note_sync_hash.dart';
 import '../../dao/db.dart';
 import '../services/sync_client_base.dart';
@@ -40,13 +41,10 @@ class ConflictResolver {
     final localNote = await DB.instance.queryNoteByUuid(noteUuid);
     if (localNote == null) return null;
 
-    // 获取远程笔记
     final remotePath = _getNoteRemotePath(noteUuid);
-    final remoteFile = await _client.readProps(remotePath);
-    if (remoteFile == null) return null;
+    final remoteContent = await _client.tryDownloadStringOrNull(remotePath);
+    if (remoteContent == null) return null;
 
-    // 下载远程笔记
-    final remoteContent = await _client.downloadString(remotePath);
     final remoteNote = Note.fromMap(jsonDecode(remoteContent));
 
     if (noteSyncContentHash(localNote) == noteSyncContentHash(remoteNote)) {
@@ -68,7 +66,10 @@ class ConflictResolver {
   ) async {
     switch (resolution) {
       case ConflictResolution.useLocal:
-        return details.localNote;
+        return mergeArchivedWhenLocalUploadWins(
+          details.localNote,
+          details.remoteNote,
+        );
       case ConflictResolution.useRemote:
         return details.remoteNote;
       case ConflictResolution.merge:
@@ -97,6 +98,9 @@ class ConflictResolver {
         : remote.deltaContent;
 
     final mergedTitle = local.title.isNotEmpty ? local.title : remote.title;
+    final mergedIsDeleted = local.isDeleted || remote.isDeleted;
+    final mergedDeletedAt =
+        mergedIsDeleted ? mergeDeletedAtFields(local, remote) : null;
 
     return Note(
       uuid: local.uuid,
@@ -109,6 +113,8 @@ class ConflictResolver {
       categoryId: local.categoryId ?? remote.categoryId,
       categoryUuid: local.categoryUuid ?? remote.categoryUuid,
       syncStatus: 'pending_upload',
+      isDeleted: mergedIsDeleted,
+      deletedAt: mergedDeletedAt,
     );
   }
 

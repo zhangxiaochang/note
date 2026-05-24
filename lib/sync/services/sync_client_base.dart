@@ -52,6 +52,12 @@ abstract class SyncClientBase {
   /// 下载字符串内容
   Future<String> downloadString(String path);
 
+  /// 尝试下载远端为 UTF-8 文本；不存在或读失败时返回 null。
+  ///
+  /// 部分 WebDAV 对 **单文件** PROPFIND（[readProps]）不可靠，判断笔记 JSON 是否存在时应
+  /// 优先用本方法（等价于带吞异常的 GET），避免误判「无远端」导致重复上传覆盖。
+  Future<String?> tryDownloadStringOrNull(String path);
+
   /// 上传字符串内容
   Future<void> uploadString(String content, String path);
 

@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_colors.dart';
+import 'app_theme_extensions.dart';
+
+export 'app_colors.dart';
+export 'app_theme_extensions.dart';
+
 enum ThemeModeOption { light, dark, system }
 enum ViewModeOption { card, list }
 
+/// 主题模式与列表视图偏好；持久化到 [SharedPreferences]，并生成 [ThemeData]。
 class ThemeProvider extends ChangeNotifier {
   static const String _themeKey = 'theme_mode';
   static const String _viewModeKey = 'view_mode';
@@ -74,33 +81,29 @@ class ThemeProvider extends ChangeNotifier {
   bool get isDarkMode {
     if (_themeMode == ThemeModeOption.dark) return true;
     if (_themeMode == ThemeModeOption.light) return false;
-    return WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
+    return WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+        Brightness.dark;
   }
 
-  // 主色 - iOS 系统蓝
-  static const Color primaryColor = Color(0xFF0A84FF);
-  static const Color primaryColorDark = Color(0xFF409CFF);
-  // 辅助色
-  static const Color secondaryColor = Color(0xFF10B981);
-  // 强调色
-  static const Color accentColor = Color(0xFF0A84FF);
-  // 背景色 - iOS grouped 风格
-  static const Color lightBackgroundColor = Color(0xFFF2F2F7);
-  static const Color darkBackgroundColor = Color(0xFF000000);
-  // 卡片色
-  static const Color lightCardColor = Color(0xFFFFFFFF);
-  static const Color darkCardColor = Color(0xFF1C1C1E);
-  // 文本色 - Apple Notes 风格
-  static const Color lightTextColor = Color(0xFF000000);
-  static const Color darkTextColor = Color(0xFFFFFFFF);
-  static const Color lightSecondaryTextColor = Color(0xFF8E8E93);
-  static const Color darkSecondaryTextColor = Color(0xFF8E8E93);
-  // 边框色
-  static const Color lightBorderColor = Color(0xFFE5E5EA);
-  static const Color darkBorderColor = Color(0xFF38383A);
-  // 分类标签背景色
-  static const Color categoryTagLightBg = Color(0xFFF2F2F7);
-  static const Color categoryTagDarkBg = Color(0xFF3A3A3C);
+  /// 与 [AppThemeColors] 同源，保留 `ThemeProvider.xxx` 供全工程引用。
+  static const Color primaryColor = AppThemeColors.primaryColor;
+  static const Color primaryColorDark = AppThemeColors.primaryColorDark;
+  static const Color secondaryColor = AppThemeColors.secondaryColor;
+  static const Color accentColor = AppThemeColors.accentColor;
+  static const Color lightBackgroundColor = AppThemeColors.lightBackgroundColor;
+  static const Color darkBackgroundColor = AppThemeColors.darkBackgroundColor;
+  static const Color lightCardColor = AppThemeColors.lightCardColor;
+  static const Color darkCardColor = AppThemeColors.darkCardColor;
+  static const Color lightTextColor = AppThemeColors.lightTextColor;
+  static const Color darkTextColor = AppThemeColors.darkTextColor;
+  static const Color lightSecondaryTextColor =
+      AppThemeColors.lightSecondaryTextColor;
+  static const Color darkSecondaryTextColor =
+      AppThemeColors.darkSecondaryTextColor;
+  static const Color lightBorderColor = AppThemeColors.lightBorderColor;
+  static const Color darkBorderColor = AppThemeColors.darkBorderColor;
+  static const Color categoryTagLightBg = AppThemeColors.categoryTagLightBg;
+  static const Color categoryTagDarkBg = AppThemeColors.categoryTagDarkBg;
 
   ThemeData get theme {
     return isDarkMode ? darkTheme : lightTheme;
@@ -143,6 +146,9 @@ class ThemeProvider extends ChangeNotifier {
     iconTheme: IconThemeData(
       color: lightTextColor,
     ),
+    extensions: const <ThemeExtension<dynamic>>[
+      AppGlassNavBarTheme.light,
+    ],
   );
 
   static final darkTheme = ThemeData(
@@ -182,5 +188,8 @@ class ThemeProvider extends ChangeNotifier {
     iconTheme: IconThemeData(
       color: darkTextColor,
     ),
+    extensions: const <ThemeExtension<dynamic>>[
+      AppGlassNavBarTheme.dark,
+    ],
   );
 }

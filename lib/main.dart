@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:sqflite/sqflite.dart';
 import 'pages/setup/storage_bootstrap_gate.dart';
 import 'services/theme_provider.dart';
 import 'widgets/app_scroll_behavior.dart';
